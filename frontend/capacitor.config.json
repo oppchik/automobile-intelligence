@@ -1,0 +1,6 @@
+{
+  "appId": "com.example.avtointellekt",
+  "appName": "[Название проекта]",
+  "webDir": "dist",
+  "server": { "androidScheme": "https" }
+}
