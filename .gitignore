@@ -1,0 +1,21 @@
+# backend
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.db
+
+# frontend
+frontend/node_modules/
+frontend/dist/
+
+# секреты
+.env
+*.env.local
+
+# датасеты и веса моделей — не коммитить в основную историю (см. README)
+backend/data/raw/
+backend/models/*.pt
+backend/models/*.h5
+backend/models/*.onnx
+
+.DS_Store
