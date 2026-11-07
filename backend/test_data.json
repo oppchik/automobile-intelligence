@@ -1,0 +1,498 @@
+{
+  "description": "Только учебные данные. Цены не являются актуальными предложениями. TEST OEM условные.",
+  "brands": {
+    "Hyundai": {
+      "Solaris": 1500000,
+      "Creta": 2200000
+    },
+    "Kia": {
+      "Rio": 1550000,
+      "Sportage": 3000000
+    },
+    "Lada": {
+      "Vesta": 1350000,
+      "Granta": 900000
+    },
+    "Volkswagen": {
+      "Polo": 1650000,
+      "Tiguan": 3400000
+    },
+    "Toyota": {
+      "Camry": 3600000,
+      "Corolla": 2300000,
+      "RAV4": 3800000
+    },
+    "Skoda": {
+      "Octavia": 2400000,
+      "Rapid": 1500000
+    },
+    "Renault": {
+      "Logan": 1100000,
+      "Duster": 1900000
+    },
+    "BMW": {
+      "3 Series": 4600000
+    },
+    "Haval": {
+      "Jolion": 2100000
+    }
+  },
+  "regions": {
+    "Москва и МО": {
+      "labor": 1.3,
+      "market": 1.06
+    },
+    "Санкт-Петербург": {
+      "labor": 1.15,
+      "market": 1.03
+    },
+    "Екатеринбург": {
+      "labor": 1.0,
+      "market": 0.98
+    },
+    "Новосибирск": {
+      "labor": 0.95,
+      "market": 0.96
+    },
+    "Казань": {
+      "labor": 0.95,
+      "market": 0.97
+    },
+    "Краснодар": {
+      "labor": 0.92,
+      "market": 0.97
+    }
+  },
+  "conditions": {
+    "excellent": 1.08,
+    "good": 1.0,
+    "average": 0.88,
+    "tired": 0.74
+  },
+  "damage_categories": {
+    "body": {
+      "label": "Кузов и оптика спереди",
+      "labor_base": 36000,
+      "severity": 0.18,
+      "parts": [
+        "Бампер передний",
+        "Крыло переднее левое",
+        "Капот",
+        "Кронштейн бампера"
+      ],
+      "keywords": [
+        "бампер",
+        "крыл",
+        "двер",
+        "капот",
+        "кузов",
+        "вмятин"
+      ]
+    },
+    "optics": {
+      "label": "Фары и оптика",
+      "labor_base": 9000,
+      "severity": 0.1,
+      "parts": [
+        "Фара левая",
+        "Решётка радиатора"
+      ],
+      "keywords": [
+        "фара",
+        "фонар",
+        "оптик",
+        "решётк",
+        "решетк"
+      ]
+    },
+    "electronics": {
+      "label": "Датчики и электроника",
+      "labor_base": 14500,
+      "severity": 0.08,
+      "parts": [
+        "Датчик парковки"
+      ],
+      "consumables": [
+        [
+          "Жгут проводки (ремонт/замена)",
+          12200
+        ]
+      ],
+      "keywords": [
+        "датчик",
+        "ошибк",
+        "парков",
+        "электр",
+        "проводк"
+      ]
+    },
+    "suspension": {
+      "label": "Подвеска и геометрия",
+      "labor_base": 27000,
+      "severity": 0.16,
+      "parts": [
+        "Рычаг подвески",
+        "Стойка стабилизатора",
+        "Радиатор охлаждения"
+      ],
+      "keywords": [
+        "подвес",
+        "колес",
+        "рычаг",
+        "стойк",
+        "радиатор"
+      ]
+    },
+    "engine": {
+      "label": "Двигатель",
+      "labor_base": 78000,
+      "severity": 0.28,
+      "parts": [],
+      "consumables": [
+        [
+          "Комплект прокладок",
+          9800
+        ]
+      ],
+      "keywords": [
+        "двигател",
+        "масло",
+        "дым",
+        "перегрев",
+        "мотор"
+      ]
+    },
+    "paint": {
+      "label": "Окраска и ЛКП",
+      "labor_base": 31000,
+      "severity": 0.12,
+      "parts": [],
+      "consumables": [
+        [
+          "ЛКМ и расходники",
+          16500
+        ]
+      ],
+      "keywords": [
+        "царап",
+        "окрас",
+        "лак",
+        "скол",
+        "потёрт",
+        "потерт"
+      ]
+    },
+    "frame": {
+      "label": "Силовой каркас / рама",
+      "labor_base": 95000,
+      "severity": 0.35,
+      "parts": [
+        "Лонжерон передний (ремонт)"
+      ],
+      "keywords": [
+        "лонжерон",
+        "рам",
+        "геометри",
+        "утопил",
+        "сгорел",
+        "пожар",
+        "airbag",
+        "подушк"
+      ],
+      "hidden": true
+    }
+  },
+  "parts": {
+    "Бампер передний": {
+      "new": 18500,
+      "used": 8500
+    },
+    "Кронштейн бампера": {
+      "new": 2600,
+      "used": 900
+    },
+    "Капот": {
+      "new": 31000,
+      "used": 14000
+    },
+    "Фара левая": {
+      "new": 24000,
+      "used": 11000
+    },
+    "Решётка радиатора": {
+      "new": 6800,
+      "used": 2500
+    },
+    "Крыло переднее левое": {
+      "new": 14500,
+      "used": 6500
+    },
+    "Радиатор охлаждения": {
+      "new": 16500,
+      "used": 7000
+    },
+    "Усилитель бампера": {
+      "new": 11000,
+      "used": 4500
+    },
+    "Лонжерон передний (ремонт)": {
+      "new": 38000,
+      "used": 19000
+    },
+    "Рычаг подвески": {
+      "new": 18900,
+      "used": 9000
+    },
+    "Стойка стабилизатора": {
+      "new": 5400,
+      "used": 2200
+    },
+    "Датчик парковки": {
+      "new": 9800,
+      "used": 4300
+    }
+  },
+  "sellers": [
+    [
+      "ЕвроАвто",
+      "new"
+    ],
+    [
+      "Bibinet",
+      "new"
+    ],
+    [
+      "CTOgram",
+      "used"
+    ],
+    [
+      "Авторазбор «Восток»",
+      "used"
+    ],
+    [
+      "Дром Запчасти",
+      "new"
+    ],
+    [
+      "Разборка 24",
+      "used"
+    ]
+  ],
+  "offers": [
+    {
+      "key": "test-1",
+      "source": "synthetic",
+      "name": "Бампер передний",
+      "oem": "TEST-100",
+      "condition": "new",
+      "seller": "Учебный продавец 1",
+      "city": "Екатеринбург",
+      "price": 18500,
+      "distance_km": 10,
+      "delivery": true
+    },
+    {
+      "key": "test-2",
+      "source": "synthetic",
+      "name": "Бампер передний",
+      "oem": "TEST-100",
+      "condition": "used",
+      "seller": "Учебный продавец 2",
+      "city": "Екатеринбург",
+      "price": 8500,
+      "distance_km": 20,
+      "delivery": true
+    },
+    {
+      "key": "test-3",
+      "source": "synthetic",
+      "name": "Фара левая",
+      "oem": "TEST-200",
+      "condition": "new",
+      "seller": "Учебный продавец 3",
+      "city": "Москва и МО",
+      "price": 24000,
+      "distance_km": 5,
+      "delivery": true
+    },
+    {
+      "key": "test-4",
+      "source": "synthetic",
+      "name": "Фара левая",
+      "oem": "TEST-200",
+      "condition": "used",
+      "seller": "Учебный продавец 4",
+      "city": "Екатеринбург",
+      "price": 11000,
+      "distance_km": 15,
+      "delivery": true
+    }
+  ],
+  "listings": [
+    {
+      "brand": "Lada",
+      "model": "Granta",
+      "region": "Екатеринбург",
+      "year": 2022,
+      "mileage": 56000,
+      "price": 850000,
+      "source": "synthetic",
+      "source_id": "Granta-1",
+      "condition": "good"
+    },
+    {
+      "brand": "Lada",
+      "model": "Granta",
+      "region": "Екатеринбург",
+      "year": 2021,
+      "mileage": 74000,
+      "price": 810000,
+      "source": "synthetic",
+      "source_id": "Granta-2",
+      "condition": "good"
+    },
+    {
+      "brand": "Lada",
+      "model": "Granta",
+      "region": "Екатеринбург",
+      "year": 2023,
+      "mileage": 42000,
+      "price": 890000,
+      "source": "synthetic",
+      "source_id": "Granta-3",
+      "condition": "good"
+    },
+    {
+      "brand": "Toyota",
+      "model": "Camry",
+      "region": "Москва и МО",
+      "year": 2018,
+      "mileage": 120000,
+      "price": 2300000,
+      "source": "synthetic",
+      "source_id": "Camry-1",
+      "condition": "good"
+    },
+    {
+      "brand": "Toyota",
+      "model": "Camry",
+      "region": "Москва и МО",
+      "year": 2017,
+      "mileage": 140000,
+      "price": 2200000,
+      "source": "synthetic",
+      "source_id": "Camry-2",
+      "condition": "good"
+    },
+    {
+      "brand": "Toyota",
+      "model": "Camry",
+      "region": "Москва и МО",
+      "year": 2019,
+      "mileage": 110000,
+      "price": 2400000,
+      "source": "synthetic",
+      "source_id": "Camry-3",
+      "condition": "good"
+    },
+    {
+      "brand": "Hyundai",
+      "model": "Solaris",
+      "region": "Санкт-Петербург",
+      "year": 2020,
+      "mileage": 80000,
+      "price": 1300000,
+      "source": "synthetic",
+      "source_id": "Solaris-1",
+      "condition": "good"
+    },
+    {
+      "brand": "Hyundai",
+      "model": "Solaris",
+      "region": "Санкт-Петербург",
+      "year": 2019,
+      "mileage": 95000,
+      "price": 1250000,
+      "source": "synthetic",
+      "source_id": "Solaris-2",
+      "condition": "good"
+    },
+    {
+      "brand": "Hyundai",
+      "model": "Solaris",
+      "region": "Санкт-Петербург",
+      "year": 2021,
+      "mileage": 70000,
+      "price": 1350000,
+      "source": "synthetic",
+      "source_id": "Solaris-3",
+      "condition": "good"
+    }
+  ],
+  "scenarios": [
+    {
+      "input": {
+        "brand": "Lada",
+        "model": "Granta",
+        "year": 2022,
+        "mileage": 60000,
+        "region": "Екатеринбург",
+        "condition": "good",
+        "description": "",
+        "damage_categories": [
+          "body"
+        ],
+        "photo_count": 0
+      },
+      "automatic_description": "Повреждён бампер",
+      "expected": {
+        "dealer": 106045.92,
+        "independent": 73447.2,
+        "used": 48784.8
+      }
+    },
+    {
+      "input": {
+        "brand": "Toyota",
+        "model": "Camry",
+        "year": 2018,
+        "mileage": 125000,
+        "region": "Москва и МО",
+        "condition": "average",
+        "description": "",
+        "damage_categories": [
+          "body",
+          "optics"
+        ],
+        "photo_count": 2
+      },
+      "automatic_description": "Повреждён бампер и фара",
+      "expected": {
+        "dealer": 574886.16,
+        "independent": 389987.6,
+        "used": 256931.6
+      }
+    },
+    {
+      "input": {
+        "brand": "Hyundai",
+        "model": "Solaris",
+        "year": 2020,
+        "mileage": 85000,
+        "region": "Санкт-Петербург",
+        "condition": "good",
+        "description": "",
+        "damage_categories": [
+          "engine"
+        ],
+        "photo_count": 1
+      },
+      "automatic_description": "Неисправен двигатель",
+      "expected": {
+        "dealer": 186939.8,
+        "independent": 116615.0,
+        "used": 116615.0
+      }
+    }
+  ]
+}

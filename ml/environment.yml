@@ -1,0 +1,12 @@
+name: avto-ml
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pytorch=*=cpu*
+  - scikit-learn
+  - pillow
+  - matplotlib
+  - pip
+  - pip:
+      - efficientnet_pytorch==0.7.1
