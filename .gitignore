@@ -19,3 +19,9 @@ backend/models/*.h5
 backend/models/*.onnx
 
 .DS_Store
+# ml: исходные фото и кэш признаков не коммитятся (см. ml/dataset/SOURCE.md)
+ml/data/
+
+# python
+__pycache__/
+*.pyc

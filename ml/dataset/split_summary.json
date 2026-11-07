@@ -1,0 +1,108 @@
+{
+  "raw_files": 1150,
+  "raw_by_origin": {
+    "train_src": 979,
+    "test_src": 171
+  },
+  "excluded": [
+    {
+      "relpath": "task_vision/data/training/minor/0109.JPEG",
+      "reason": "exact_duplicate_of",
+      "of": "task_vision/data/training/minor/0016.JPEG"
+    },
+    {
+      "relpath": "task_vision/data/training/minor/0190.JPEG",
+      "reason": "exact_duplicate_of",
+      "of": "task_vision/data/training/minor/0014.JPEG"
+    },
+    {
+      "relpath": "task_vision/data/training/minor/0211.jpeg",
+      "reason": "exact_duplicate_of",
+      "of": "task_vision/data/training/minor/0005.JPEG"
+    },
+    {
+      "relpath": "task_vision/data/training/minor/0221.JPEG",
+      "reason": "exact_duplicate_of",
+      "of": "task_vision/data/training/minor/0108.JPEG"
+    },
+    {
+      "relpath": "task_vision/data/training/minor/0237.JPEG",
+      "reason": "exact_duplicate_of",
+      "of": "task_vision/data/training/minor/0048.JPEG"
+    },
+    {
+      "relpath": "task_vision/data/training/moderate/0198.JPEG",
+      "reason": "exact_duplicate_of",
+      "of": "task_vision/data/training/moderate/0090.JPEG"
+    },
+    {
+      "relpath": "task_vision/data/training/moderate/0204.JPEG",
+      "reason": "exact_duplicate_of",
+      "of": "task_vision/data/training/moderate/0055.JPEG"
+    },
+    {
+      "relpath": "task_vision/data/training/moderate/0257.JPEG",
+      "reason": "exact_duplicate_of",
+      "of": "task_vision/data/training/moderate/0102.JPEG"
+    },
+    {
+      "relpath": "task_vision/data/training/severe/0223.JPEG",
+      "reason": "exact_duplicate_of",
+      "of": "task_vision/data/training/severe/0082.JPEG"
+    },
+    {
+      "relpath": "task_vision/data/training/severe/0339.JPEG",
+      "reason": "exact_duplicate_of",
+      "of": "task_vision/data/training/severe/0154.JPEG"
+    },
+    {
+      "relpath": "task_vision/data/test/01-minor/0004.JPEG",
+      "reason": "exact_duplicate_of",
+      "of": "task_vision/data/training/minor/0263.JPEG"
+    },
+    {
+      "relpath": "task_vision/data/test/01-minor/0027.jpeg",
+      "reason": "exact_duplicate_of",
+      "of": "task_vision/data/training/minor/0003.JPEG"
+    },
+    {
+      "relpath": "task_vision/data/test/03-severe/0002.JPEG",
+      "reason": "near_duplicate_of_train"
+    },
+    {
+      "relpath": "task_vision/data/test/03-severe/0025.JPEG",
+      "reason": "near_duplicate_of_train"
+    }
+  ],
+  "near_duplicate_groups_with_size_gt1": 11,
+  "near_duplicate_groups_with_conflicting_labels": 1,
+  "final_total": 1136,
+  "counts": {
+    "train": {
+      "minor": 234,
+      "moderate": 267,
+      "severe": 329
+    },
+    "val": {
+      "minor": 39,
+      "moderate": 45,
+      "severe": 55
+    },
+    "test": {
+      "minor": 46,
+      "moderate": 55,
+      "severe": 66
+    }
+  },
+  "totals": {
+    "train": 830,
+    "val": 139,
+    "test": 167
+  },
+  "params": {
+    "seed": 42,
+    "hamming_threshold": 4,
+    "val_folds": 7
+  },
+  "train_vs_val_test_group_leak": 0
+}
