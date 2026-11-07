@@ -1,0 +1,39 @@
+{
+  "task": "damage severity classification (3 classes)",
+  "classes": [
+    "minor",
+    "moderate",
+    "severe"
+  ],
+  "backbone": {
+    "name": "efficientnet-b0",
+    "frozen": true,
+    "weights_url": "https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b0-355c32eb.pth",
+    "weights_sha256_prefix": "355c32eb",
+    "preprocess": "resize shorter side to 256 (bicubic), center crop 224, ImageNet mean/std; embedding = global-average-pooled conv features (1280-d); TTA = original + horizontal flip"
+  },
+  "head": {
+    "type": "multinomial logistic regression on standardized embeddings",
+    "C": 0.001,
+    "class_weight": "balanced",
+    "file": "severity_head.npz"
+  },
+  "manual_fallback": {
+    "tau": 0.55,
+    "rule": "наименьший порог, при котором на val точность среди принятых >= 0.75 и покрытие >= 0.4",
+    "meaning": "if max class probability < tau the UI must ask the user to choose severity manually"
+  },
+  "dataset": {
+    "source": "https://github.com/spcCodes/Car-Damage-Intensity-Detection",
+    "commit": "9cf322a5e7bdf32c87c49b717d479d47fd44fffc",
+    "manifest": "ml/dataset/manifest.csv",
+    "summary": "ml/dataset/split_summary.json"
+  },
+  "metrics_file": "ml/reports/metrics.json",
+  "seed": 42,
+  "limitations": [
+    "only severity is predicted; damaged parts are NOT predicted (the dataset has no part labels)",
+    "severity labels are subjective and the source dataset has no stated annotation protocol or license",
+    "validation/test sets are small (139 / 167 images): see confidence intervals in metrics.json"
+  ]
+}

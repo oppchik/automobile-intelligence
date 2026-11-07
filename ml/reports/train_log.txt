@@ -1,0 +1,48 @@
+samples: train=830 val=139 test=167
+CV C=0.0001 macro-F1 = 0.669 +- 0.027
+CV C=0.0003 macro-F1 = 0.677 +- 0.024
+CV C=0.001  macro-F1 = 0.682 +- 0.026
+CV C=0.003  macro-F1 = 0.673 +- 0.026
+CV C=0.01   macro-F1 = 0.655 +- 0.032
+CV C=0.03   macro-F1 = 0.653 +- 0.037
+CV C=0.1    macro-F1 = 0.652 +- 0.044
+CV C=0.3    macro-F1 = 0.650 +- 0.049
+CV C=1.0    macro-F1 = 0.648 +- 0.044
+best C = 0.001
+manual-review threshold tau = 0.55  (наименьший порог, при котором на val точность среди принятых >= 0.75 и покрытие >= 0.4)
+
+=== VAL (n=139) ===
+model                      acc=0.640  bal_acc=0.629  macro-F1=0.620  QWK=0.696  minor<->severe=3
+baseline_handcrafted_rf    acc=0.540  bal_acc=0.525  macro-F1=0.499  QWK=0.533  minor<->severe=10
+baseline_majority          acc=0.396  bal_acc=0.333  macro-F1=0.189  QWK=0.000  minor<->severe=39
+model 95% CI: acc [0.5611510791366906, 0.7194244604316546]  macro-F1 [0.542106800182179, 0.6954484874730171]
+manual fallback (tau=0.55): auto 69% of cases, accuracy on auto = 0.802, sent to manual = 43
+              precision    recall  f1-score   support
+
+       minor      0.600     0.692     0.643        39
+    moderate      0.472     0.378     0.420        45
+      severe      0.776     0.818     0.796        55
+
+    accuracy                          0.640       139
+   macro avg      0.616     0.629     0.620       139
+weighted avg      0.628     0.640     0.631       139
+
+confusion matrix (rows=true, cols=pred): [[27, 11, 1], [16, 17, 12], [2, 8, 45]]
+
+=== TEST (n=167) ===
+model                      acc=0.683  bal_acc=0.684  macro-F1=0.681  QWK=0.689  minor<->severe=5
+baseline_handcrafted_rf    acc=0.563  bal_acc=0.561  macro-F1=0.555  QWK=0.460  minor<->severe=17
+baseline_majority          acc=0.395  bal_acc=0.333  macro-F1=0.189  QWK=0.000  minor<->severe=46
+model 95% CI: acc [0.6047904191616766, 0.7485029940119761]  macro-F1 [0.6038229064569218, 0.7461352750631921]
+manual fallback (tau=0.55): auto 64% of cases, accuracy on auto = 0.794, sent to manual = 60
+              precision    recall  f1-score   support
+
+       minor      0.667     0.739     0.701        46
+    moderate      0.559     0.600     0.579        55
+      severe      0.825     0.712     0.764        66
+
+    accuracy                          0.683       167
+   macro avg      0.684     0.684     0.681       167
+weighted avg      0.694     0.683     0.686       167
+
+confusion matrix (rows=true, cols=pred): [[34, 11, 1], [13, 33, 9], [4, 15, 47]]
