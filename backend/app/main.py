@@ -6,6 +6,7 @@ from . import schemas, models
 from .database import Base, engine, get_db
 from .data import BRANDS, REGIONS, CONDITIONS, CONDITION_LABELS, DAMAGE_CATEGORIES
 from .engine import run_calculation, compute_scenarios, build_part_offers, CalculationResult, Variant
+from .repair_estimator import calculate_detailed_repair
 
 Base.metadata.create_all(bind=engine)
 
@@ -67,20 +68,30 @@ def get_catalog():
     }
 
 
-@app.post("/api/calculate", response_model=schemas.CalculateResponse)
-def calculate(req: schemas.CalculateRequest):
+def _validate_request(req: schemas.CalculateRequest) -> None:
     if req.brand not in BRANDS or req.model not in BRANDS[req.brand]:
         raise HTTPException(400, "Неизвестная марка или модель")
     if req.region not in REGIONS:
         raise HTTPException(400, "Неизвестный регион")
     if req.condition not in CONDITIONS:
         raise HTTPException(400, "Неизвестное состояние")
+
+
+@app.post("/api/calculate", response_model=schemas.CalculateResponse)
+def calculate(req: schemas.CalculateRequest):
+    _validate_request(req)
     result = run_calculation(
         brand=req.brand, model=req.model, year=req.year, mileage=req.mileage,
         region=req.region, condition=req.condition, description=req.description,
         damage_categories=req.damage_categories, photo_count=req.photo_count,
     )
     return _to_response(result)
+
+
+@app.post("/api/estimate", response_model=schemas.EstimateResponse)
+def estimate(req: schemas.CalculateRequest):
+    _validate_request(req)
+    return calculate_detailed_repair(**req.model_dump())
 
 
 @app.post("/api/scenarios", response_model=schemas.ScenarioResponse)

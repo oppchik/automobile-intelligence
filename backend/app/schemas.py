@@ -89,3 +89,72 @@ class HistoryOut(HistorySaveRequest):
 class WatchlistToggleRequest(BaseModel):
     session_id: str
     part_key: str
+
+
+class EstimatePart(BaseModel):
+    name: str
+    condition: str
+    new_price: int
+    used_price: int | None
+    base_price: int
+    cost: float
+    amount: int
+
+
+class EstimateConsumable(BaseModel):
+    name: str
+    base_price: int
+    cost: float
+    amount: int
+
+
+class EstimateLabor(BaseModel):
+    key: str
+    label: str
+    hours: float
+    rate: float
+    cost: float
+    amount: int
+
+
+class EstimateAmounts(BaseModel):
+    parts: int
+    labor: int
+    diagnostic: int
+    contingency: int
+    total: int
+
+
+class EstimateVariant(BaseModel):
+    key: str
+    name: str
+    eta: str
+    parts: list[EstimatePart]
+    consumables: list[EstimateConsumable]
+    labor_lines: list[EstimateLabor]
+    parts_markup: float
+    labor_multiplier: float
+    hourly_rate: float
+    parts_cost: float
+    labor_cost: float
+    diagnostic: float
+    contingency: float
+    cost: float
+    amounts: EstimateAmounts
+    savings_vs_dealer: int
+    savings_percent: float
+
+
+class EstimateResponse(BaseModel):
+    categories: list[str]
+    scale: float
+    region: str
+    region_coefficient: float
+    base_hourly_rate: int
+    diagnostic_base: int
+    contingency_rate: float
+    hours_by_category: dict[str, float]
+    total_hours: float
+    cheapest: str
+    used_parts_applicable: bool
+    variants: list[EstimateVariant]
