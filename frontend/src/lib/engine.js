@@ -73,6 +73,14 @@ export function fmt(n) {
   return (Math.round(n / 1000) * 1000).toLocaleString("ru-RU") + " ₽";
 }
 
+export function fmtRub(n) {
+  return Math.round(n).toLocaleString("ru-RU") + " ₽";
+}
+
+export function fmtHours(n) {
+  return n.toLocaleString("ru-RU", { maximumFractionDigits: 2 }) + " ч";
+}
+
 export function detectCategories(description, checked) {
   const text = (description || "").toLowerCase();
   const found = new Set(checked || []);
@@ -187,4 +195,79 @@ export function buildPartOffers(scale, region) {
     }
   }
   return offers;
+}
+
+export const BASE_HOURLY_RATE = 2000;
+
+const roundHalfUp = (x) => Math.floor(x + 0.5);
+
+function roundToSum(values, target) {
+  const floors = values.map((v) => Math.floor(v));
+  const extra = target - floors.reduce((a, b) => a + b, 0);
+  const order = values.map((_, i) => i).sort((i, j) => (floors[i] - values[i]) - (floors[j] - values[j]));
+  order.slice(0, Math.max(0, extra)).forEach((i) => { floors[i] += 1; });
+  return floors;
+}
+
+const ESTIMATE_SPECS = [["new", 1.35, 1.7], ["new", 1, 1], ["used", 1, 1]];
+
+export function buildEstimate(result) {
+  const regionalRate = REGIONS[result.region][0];
+  const hours = {};
+  for (const key of result.categories) hours[key] = DAMAGE_CATEGORIES[key].laborBase / BASE_HOURLY_RATE;
+  const totalHours = Object.values(hours).reduce((a, b) => a + b, 0);
+
+  const variants = result.variants.map((original, index) => {
+    const [condition, markup, multiplier] = ESTIMATE_SPECS[index];
+    const parts = result.required_parts.map((name) => {
+      const entry = PARTS_CATALOG[name];
+      const selected = entry[condition] ? condition : "new";
+      return {
+        name, condition: selected, new_price: entry.new, used_price: entry.used ?? null,
+        base_price: entry[selected], cost: entry[selected] * result.scale * markup,
+      };
+    });
+    const consumables = result.consumables.map(([name, price]) => ({ name, base_price: price, cost: price * result.scale }));
+    const partsCost = parts.reduce((a, p) => a + p.cost, 0) + consumables.reduce((a, c) => a + c.cost, 0);
+    const hourlyRate = BASE_HOURLY_RATE * regionalRate * result.scale * multiplier;
+    const laborLines = result.categories.map((key) => ({
+      key, label: DAMAGE_CATEGORIES[key].label, hours: hours[key], rate: hourlyRate, cost: hours[key] * hourlyRate,
+    }));
+    const laborCost = totalHours * BASE_HOURLY_RATE * regionalRate * result.scale * multiplier;
+    const diagnostic = DIAGNOSTIC_FEE * regionalRate;
+    const contingency = CONTINGENCY_RATE * (partsCost + laborCost);
+    const cost = partsCost + laborCost + diagnostic + contingency;
+
+    const total = roundHalfUp(cost);
+    const [partsAmount, laborAmount, diagnosticAmount, contingencyAmount] =
+      roundToSum([partsCost, laborCost, diagnostic, contingency], total);
+    const itemAmounts = roundToSum([...parts, ...consumables].map((l) => l.cost), partsAmount);
+    [...parts, ...consumables].forEach((line, i) => { line.amount = itemAmounts[i]; });
+    const laborAmounts = roundToSum(laborLines.map((l) => l.cost), laborAmount);
+    laborLines.forEach((line, i) => { line.amount = laborAmounts[i]; });
+
+    return {
+      key: original.key, name: original.name, eta: original.eta,
+      parts, consumables, labor_lines: laborLines,
+      parts_markup: markup, labor_multiplier: multiplier, hourly_rate: hourlyRate,
+      amounts: { parts: partsAmount, labor: laborAmount, diagnostic: diagnosticAmount, contingency: contingencyAmount, total },
+      parts_cost: partsCost, labor_cost: laborCost, diagnostic, contingency, cost,
+    };
+  });
+
+  const dealerTotal = variants[0].amounts.total;
+  for (const v of variants) {
+    const saving = dealerTotal - v.amounts.total;
+    v.savings_vs_dealer = saving;
+    v.savings_percent = dealerTotal ? Math.floor((saving / dealerTotal) * 1000 + 0.5) / 10 : 0;
+  }
+
+  const cheapest = variants.reduce((best, v) => (v.cost < best.cost ? v : best), variants[0]);
+  return {
+    categories: result.categories, scale: result.scale, region: result.region,
+    region_coefficient: regionalRate, base_hourly_rate: BASE_HOURLY_RATE,
+    diagnostic_base: DIAGNOSTIC_FEE, contingency_rate: CONTINGENCY_RATE,
+    hours_by_category: hours, total_hours: totalHours, cheapest: cheapest.key,
+    used_parts_applicable: result.required_parts.length > 0, variants,
+  };
 }

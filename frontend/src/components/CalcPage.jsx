@@ -3,6 +3,7 @@ import { fmt } from "../lib/engine.js";
 import * as api from "../lib/api.js";
 import { Card, Field, Segmented } from "./ui.jsx";
 import { CirButton, CirCheck } from "./cirrus.jsx";
+import { VariantCompare, EstimateBreakdown } from "./EstimateDetails.jsx";
 
 const DECISION_ICON = { repair: "✓", sell: "○", inspect: "!" };
 
@@ -27,6 +28,7 @@ export default function CalcPage({ catalog, onSaveHistory, offline }) {
   const [variantIndex, setVariantIndex] = useState(1);
   const [years, setYears] = useState(2);
   const [scenarios, setScenarios] = useState(null);
+  const [estimate, setEstimate] = useState(null);
 
   useEffect(() => { setModel(Object.keys(brands[brand])[0]); }, [brand]); // eslint-disable-line
 
@@ -49,6 +51,7 @@ export default function CalcPage({ catalog, onSaveHistory, offline }) {
     setLoading(true);
     setResult(null);
     setScenarios(null);
+    setEstimate(null);
 
     const payload = {
       brand, model, year: +year, mileage: +mileage, region, condition,
@@ -56,12 +59,13 @@ export default function CalcPage({ catalog, onSaveHistory, offline }) {
     };
     const started = Date.now();
     const r = await api.calculate(payload);
-    const s = await api.fetchScenarios(r, variantIndex, years);
+    const [s, e] = await Promise.all([api.fetchScenarios(r, variantIndex, years), api.fetchEstimate(payload, r)]);
     const elapsed = Date.now() - started;
     if (elapsed < 500) await new Promise((res) => setTimeout(res, 500 - elapsed));
 
     setResult(r);
     setScenarios(s);
+    setEstimate(e);
     setLoading(false);
     onSaveHistory(r, s, variantIndex, years);
   }
@@ -167,7 +171,7 @@ export default function CalcPage({ catalog, onSaveHistory, offline }) {
 
       {!loading && result && scenarios && (
         <ResultView
-          result={result} scenarios={scenarios} variantIndex={variantIndex}
+          result={result} scenarios={scenarios} estimate={estimate} variantIndex={variantIndex}
           onVariantChange={changeVariant} years={years} onYearsChange={changeYears}
           offline={offline || !result.online}
         />
@@ -176,7 +180,7 @@ export default function CalcPage({ catalog, onSaveHistory, offline }) {
   );
 }
 
-function ResultView({ result, scenarios, variantIndex, onVariantChange, years, onYearsChange, offline }) {
+function ResultView({ result, scenarios, estimate, variantIndex, onVariantChange, years, onYearsChange, offline }) {
   const s = scenarios;
   const variant = result.variants[variantIndex];
   const maxAbs = Math.max(Math.abs(s.scenario1), Math.abs(s.scenario2), Math.abs(s.scenario3), 1);
@@ -225,10 +229,20 @@ function ResultView({ result, scenarios, variantIndex, onVariantChange, years, o
               <div className="split-bar"><i style={{ width: `${(v.partsCost ?? v.parts_cost) / v.cost * 100}%` }} /></div>
               <small>Запчасти {fmt(v.partsCost ?? v.parts_cost)} · Работа {fmt(v.laborCost ?? v.labor_cost)}</small>
               <small>Срок: {v.eta}</small>
+              {estimate && estimate.cheapest === v.key && <small className="v-best">Самый выгодный по цене</small>}
+              {estimate && estimate.variants[i].savings_vs_dealer > 0 && (
+                <small>Дешевле дилера на {fmt(estimate.variants[i].savings_vs_dealer)}</small>
+              )}
+              {estimate && !estimate.used_parts_applicable && v.key === "used" && (
+                <small>Заменяемых деталей нет — цена как у независимого сервиса</small>
+              )}
             </label>
           ))}
         </div>
+        {estimate && <VariantCompare estimate={estimate} variantIndex={variantIndex} />}
       </Card>
+
+      {estimate && <EstimateBreakdown estimate={estimate} variantIndex={variantIndex} />}
 
       <Card title="Рыночная цена автомобиля">
         <div className="kv-grid">

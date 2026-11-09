@@ -54,6 +54,17 @@ export async function calculate(payload) {
   }
 }
 
+export async function fetchEstimate(payload, calculation) {
+  try {
+    const data = await call("/estimate", { method: "POST", body: JSON.stringify(payload) });
+    backendOk = true;
+    return data;
+  } catch {
+    backendOk = false;
+    return local.buildEstimate(calculation);
+  }
+}
+
 export async function fetchScenarios(calculation, variantIndex, years) {
   try {
     const data = await call("/scenarios", {
