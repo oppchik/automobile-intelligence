@@ -101,7 +101,9 @@ export function estimateMarketValue(basePrice, year, mileage, region, condition)
   return basePrice * ageFactor * mileageFactor * regionMarket * conditionFactor;
 }
 
-export function runCalculation({ brand, model, year, mileage, region, condition = "good", description = "", damage_categories = [], photo_count = 0 }) {
+const PHOTO_SEVERITY_BONUS = { minor: 0, moderate: 0.06, severe: 0.12 };
+
+export function runCalculation({ brand, model, year, mileage, region, condition = "good", description = "", damage_categories = [], photo_count = 0, photo_severity = null }) {
   const basePrice = BRANDS[brand][model];
   const scale = Math.min(2.2, Math.max(0.6, basePrice / 1500000));
   const regionLabor = REGIONS[region][0];
@@ -119,7 +121,8 @@ export function runCalculation({ brand, model, year, mileage, region, condition 
     (cat.parts || []).forEach((p) => requiredParts.add(p));
     (cat.consumables || []).forEach((c) => consumables.push(c));
   }
-  severity = Math.min(MAX_SEVERITY, severity + Math.min(0.12, photo_count * 0.035));
+  const photoBonus = Object.hasOwn(PHOTO_SEVERITY_BONUS, photo_severity) ? PHOTO_SEVERITY_BONUS[photo_severity] : Math.min(0.12, photo_count * 0.035);
+  severity = Math.min(MAX_SEVERITY, severity + photoBonus);
 
   const consumablesTotal = consumables.reduce((a, [, price]) => a + price, 0) * scale;
   const partsList = [...requiredParts].sort();

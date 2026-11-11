@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -7,6 +7,7 @@ from .database import Base, engine, get_db
 from .data import BRANDS, REGIONS, CONDITIONS, CONDITION_LABELS, DAMAGE_CATEGORIES
 from .engine import run_calculation, compute_scenarios, build_part_offers, CalculationResult, Variant
 from .repair_estimator import calculate_detailed_repair
+from .severity import MAX_BYTES, MAX_PHOTOS, severity_service
 
 Base.metadata.create_all(bind=engine)
 
@@ -84,6 +85,7 @@ def calculate(req: schemas.CalculateRequest):
         brand=req.brand, model=req.model, year=req.year, mileage=req.mileage,
         region=req.region, condition=req.condition, description=req.description,
         damage_categories=req.damage_categories, photo_count=req.photo_count,
+        photo_severity=req.photo_severity,
     )
     return _to_response(result)
 
@@ -186,6 +188,17 @@ def vision_classify(description: str = "", photo_count: int = 0):
         "source": "heuristic-baseline",
         "note": "Эвристика на ключевых словах — не нейросеть. См. README.",
     }
+
+
+@app.on_event("startup")
+def warm_up_severity_model():
+    severity_service.warm_up()
+
+
+@app.post("/api/vision/severity", response_model=schemas.SeverityResponse)
+def vision_severity(photos: list[UploadFile] = File(default_factory=list)):
+    files = [(f.filename or "photo", f.file.read(MAX_BYTES + 1)) for f in photos[:MAX_PHOTOS + 1]]
+    return severity_service.classify(files)
 
 
 @app.get("/api/health")

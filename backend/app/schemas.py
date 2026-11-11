@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -11,6 +13,7 @@ class CalculateRequest(BaseModel):
     description: str = ""
     damage_categories: list[str] = Field(default_factory=list)
     photo_count: int = 0
+    photo_severity: Literal["minor", "moderate", "severe"] | None = None
 
 
 class VariantOut(BaseModel):
@@ -158,3 +161,23 @@ class EstimateResponse(BaseModel):
     cheapest: str
     used_parts_applicable: bool
     variants: list[EstimateVariant]
+
+
+class SeverityPhoto(BaseModel):
+    name: str
+    status: str
+    reason: str | None = None
+    severity: str | None = None
+    confidence: float | None = None
+
+
+class SeverityResponse(BaseModel):
+    status: str
+    message: str
+    severity: str | None = None
+    confidence: float | None = None
+    probabilities: dict[str, float] | None = None
+    needs_manual_review: bool
+    tau: float | None = None
+    photos: list[SeverityPhoto]
+    elapsed_ms: int

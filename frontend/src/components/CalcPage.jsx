@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fmt } from "../lib/engine.js";
+import { suggestedSeverity } from "../lib/severity.js";
 import * as api from "../lib/api.js";
 import { Card, Field, Segmented } from "./ui.jsx";
 import { CirButton, CirCheck } from "./cirrus.jsx";
 import { VariantCompare, EstimateBreakdown } from "./EstimateDetails.jsx";
+import PhotoSeverity from "./PhotoSeverity.jsx";
 
 const DECISION_ICON = { repair: "✓", sell: "○", inspect: "!" };
 
@@ -22,6 +24,10 @@ export default function CalcPage({ catalog, onSaveHistory, offline }) {
   const [description, setDescription] = useState("");
   const [categories, setCategories] = useState([]);
   const [photos, setPhotos] = useState([]);
+  const [severityResult, setSeverityResult] = useState(null);
+  const [severityLoading, setSeverityLoading] = useState(false);
+  const [photoSeverity, setPhotoSeverity] = useState(null);
+  const classifyRef = useRef(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -39,6 +45,22 @@ export default function CalcPage({ catalog, onSaveHistory, offline }) {
   function handlePhotos(e) {
     const files = [...e.target.files].slice(0, 6);
     setPhotos(files.map((f) => URL.createObjectURL(f)));
+    runClassification(files);
+  }
+
+  async function runClassification(files) {
+    if (classifyRef.current) classifyRef.current.abort();
+    setSeverityResult(null);
+    setPhotoSeverity(null);
+    if (files.length === 0) return setSeverityLoading(false);
+    const controller = new AbortController();
+    classifyRef.current = controller;
+    setSeverityLoading(true);
+    const res = await api.classifyPhotos(files, controller.signal);
+    if (controller.signal.aborted || !res) return;
+    setSeverityResult(res);
+    setPhotoSeverity(suggestedSeverity(res));
+    setSeverityLoading(false);
   }
 
   async function handleCalculate() {
@@ -55,7 +77,7 @@ export default function CalcPage({ catalog, onSaveHistory, offline }) {
 
     const payload = {
       brand, model, year: +year, mileage: +mileage, region, condition,
-      description, damage_categories: categories, photo_count: photos.length,
+      description, damage_categories: categories, photo_count: photos.length, photo_severity: photoSeverity,
     };
     const started = Date.now();
     const r = await api.calculate(payload);
@@ -142,8 +164,9 @@ export default function CalcPage({ catalog, onSaveHistory, offline }) {
           {photos.length > 0 && (
             <div className="thumbs">{photos.map((src, i) => <img key={i} src={src} alt="" />)}</div>
           )}
+          <PhotoSeverity result={severityResult} loading={severityLoading} value={photoSeverity} onChange={setPhotoSeverity} />
         </Field>
-        <CirButton className="cir-btn--block" arrow={false} onClick={handleCalculate} disabled={loading}>
+        <CirButton className="cir-btn--block" arrow={false} onClick={handleCalculate} disabled={loading || severityLoading}>
           Рассчитать
         </CirButton>
         <div className="err-text">{error}</div>

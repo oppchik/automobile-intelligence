@@ -1,0 +1,2 @@
+numpy>=1.26
+efficientnet_pytorch==0.7.1
