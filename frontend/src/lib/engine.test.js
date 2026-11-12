@@ -42,3 +42,15 @@ test("used parts are flagged as not applicable without replaceable parts", () =>
   assert.equal(e.cheapest, "independent");
   assert.equal(buildEstimate(runCalculation(data.scenarios[0].input)).used_parts_applicable, true);
 });
+
+test("photo severity replaces the photo-count bonus", () => {
+  const base = { ...data.scenarios[0].input, photo_count: 0 };
+  const sev = (extra) => runCalculation({ ...base, ...extra }).severity;
+  assert.ok(Math.abs(sev({ photo_severity: "moderate" }) - sev({ photo_severity: "minor" }) - 0.06) < 1e-9);
+  assert.ok(Math.abs(sev({ photo_severity: "severe" }) - sev({ photo_severity: "minor" }) - 0.12) < 1e-9);
+  assert.equal(sev({ photo_severity: "minor", photo_count: 6 }), sev({ photo_severity: "minor" }));
+  assert.equal(sev({ photo_severity: null, photo_count: 3 }), sev({ photo_count: 3 }));
+  assert.equal(sev({ photo_severity: "constructor", photo_count: 3 }), sev({ photo_count: 3 }));
+  const costs = (extra) => runCalculation({ ...base, ...extra }).variants.map((v) => v.parts_cost + v.labor_cost);
+  assert.deepEqual(costs({ photo_severity: "severe" }), costs({ photo_severity: "minor" }));
+});

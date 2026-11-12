@@ -17,6 +17,7 @@ from .data import (
 
 CURRENT_YEAR = 2026
 MAX_SEVERITY = 0.75
+PHOTO_SEVERITY_BONUS = {"minor": 0.0, "moderate": 0.06, "severe": 0.12}
 
 
 def _hash(s: str) -> int:
@@ -85,6 +86,7 @@ def estimate_market_value(base_price: float, year: int, mileage: int, region: st
 def run_calculation(
     *, brand: str, model: str, year: int, mileage: int, region: str,
     condition: str, description: str, damage_categories: list[str] | None, photo_count: int,
+    photo_severity: str | None = None,
 ) -> CalculationResult:
     base_price = BRANDS[brand][model]
     scale = min(2.2, max(0.6, base_price / 1_500_000))
@@ -102,7 +104,8 @@ def run_calculation(
         severity += cat["severity"]
         required_parts.update(cat.get("parts", []))
         consumables.extend(cat.get("consumables", []))
-    severity = min(MAX_SEVERITY, severity + min(0.12, photo_count * 0.035))
+    photo_bonus = PHOTO_SEVERITY_BONUS.get(photo_severity, min(0.12, photo_count * 0.035))
+    severity = min(MAX_SEVERITY, severity + photo_bonus)
 
     consumables_total = sum(price for _, price in consumables) * scale
     parts_list = sorted(required_parts)

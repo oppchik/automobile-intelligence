@@ -7,6 +7,7 @@
  */
 import * as local from "./engine.js";
 import { getSessionId } from "./session.js";
+import { failedResult, normalizeResult } from "./severity.js";
 
 const BASE = import.meta.env.VITE_API_URL || "/api";
 let backendOk = true;
@@ -134,5 +135,31 @@ export async function toggleWatch(partKey) {
     return data.watching;
   } catch {
     return null;
+  }
+}
+
+const CLASSIFY_TIMEOUT_MS = 30000;
+
+export async function classifyPhotos(files, signal) {
+  const body = new FormData();
+  files.forEach((f) => body.append("photos", f, f.name));
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CLASSIFY_TIMEOUT_MS);
+  if (signal) signal.addEventListener("abort", () => controller.abort());
+  try {
+    const res = await fetch(`${BASE}/vision/severity`, { method: "POST", body, signal: controller.signal });
+    if (res.status === 413) {
+      return failedResult("rejected", "Фото слишком большие для загрузки — выберите тяжесть вручную");
+    }
+    if (!res.ok) throw new Error(`API /vision/severity -> ${res.status}`);
+    return normalizeResult(await res.json());
+  } catch {
+    if (signal && signal.aborted) return null;
+    if (controller.signal.aborted) {
+      return failedResult("timeout", "Распознавание заняло слишком много времени — выберите тяжесть вручную");
+    }
+    return failedResult("unavailable", "Сервис распознавания недоступен — выберите тяжесть вручную");
+  } finally {
+    clearTimeout(timer);
   }
 }
