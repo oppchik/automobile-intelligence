@@ -95,7 +95,8 @@ class MarketTests(unittest.TestCase):
 
     def test_report_market_example(self):
         result=estimate_from_listings(self.listings,**self.vehicle)
-        self.assertEqual(result['status'],'ok')
+        self.assertEqual(result['status'], 'indicative')
+        self.assertIsNone(result['mad'])
         self.assertEqual((result['estimate'],result['minimum'],result['maximum'],result['count']),(850000,810000,890000,3))
 
     def test_insufficient_data(self):
@@ -103,22 +104,58 @@ class MarketTests(unittest.TestCase):
         self.assertEqual(result['status'],'insufficient_data')
         self.assertIsNone(result['estimate'])
 
+    def test_mad_thresholds(self):
+        prices = [810000, 820000, 830000, 840000, 850000, 860000, 870000]
+        cases = [
+            (4, 'indicative', 825000, None),
+            (5, 'preliminary', 830000, None),
+            (6, 'preliminary', 835000, None),
+            (7, 'ok', 840000, 20000),
+        ]
+        for count, status, estimate, mad in cases:
+            with self.subTest(count=count):
+                records = [
+                    dict(self.listings[0], source_id=str(i), price=price)
+                    for i, price in enumerate(prices[:count])
+                ]
+                result = estimate_from_listings(records, **self.vehicle)
+                self.assertEqual(result['status'], status)
+                self.assertEqual(result['count'], count)
+                self.assertEqual(result['estimate'], estimate)
+                self.assertEqual(result['mad'], mad)
+
     def test_mad_removes_extreme_outlier(self):
-        records=[dict(self.listings[0],source_id=str(i),price=value) for i,value in enumerate([810000,830000,850000,870000,9000000])]
-        result=estimate_from_listings(records,**self.vehicle)
-        self.assertEqual(result['count'],4)
-        self.assertEqual(result['candidate_count'],5)
-        self.assertEqual(result['estimate'],840000)
+        prices = [810000, 820000, 830000, 840000, 850000, 860000, 870000, 9000000]
+        records = [
+            dict(self.listings[0], source_id=str(i), price=price)
+            for i, price in enumerate(prices)
+        ]
+        result = estimate_from_listings(records, **self.vehicle)
+        self.assertEqual(result['status'], 'ok')
+        self.assertEqual(result['count'], 7)
+        self.assertEqual(result['candidate_count'], 8)
+        self.assertEqual(result['estimate'], 840000)
 
     def test_recheck_count_after_outlier_filter(self):
-        records=[dict(self.listings[0],source_id=str(i),price=value) for i,value in enumerate([810000,850000,9000000])]
-        self.assertEqual(estimate_from_listings(records,**self.vehicle)['status'],'insufficient_data')
+        prices = [810000, 820000, 830000, 840000, 850000, 860000, 9000000]
+        records = [
+            dict(self.listings[0], source_id=str(i), price=price)
+            for i, price in enumerate(prices)
+        ]
+        result = estimate_from_listings(records, **self.vehicle)
+        self.assertEqual(result['status'], 'preliminary')
+        self.assertEqual(result['count'], 6)
+        self.assertEqual(result['candidate_count'], 7)
+        self.assertEqual(result['estimate'], 835000)
 
     def test_zero_mad_and_generator(self):
-        records=[dict(self.listings[0],source_id=str(i)) for i in range(3)]
+        records=[dict(self.listings[0],source_id=str(i)) for i in range(7)]
         result=estimate_from_listings(iter(records),**self.vehicle)
         self.assertEqual(result['estimate'],850000)
-        self.assertEqual(result['candidate_count'],3)
+        self.assertEqual(result['candidate_count'], 7)
+        self.assertEqual(result['count'], 7)
+        self.assertEqual(result['status'], 'ok')
+        self.assertEqual(result['mad'], 0)
 
 
 if __name__=='__main__':

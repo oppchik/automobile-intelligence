@@ -95,24 +95,38 @@ def select_comparables(records, *, brand, model, year, mileage, region=None,
 
 
 def estimate_from_listings(records, **vehicle):
-    """Медиана после MAD; минимум три аналога и до, и после фильтрации.
+    """Оценка по медиане сопоставимых объявлений.
 
-    При MAD=0 сохраняем выборку: деление на ноль не используется, и
-    ненулевые отклонения без устойчивой оценки разброса не отбрасываются.
+    MAD — медиана абсолютных отклонений от медианы. Фильтр применяется
+    от семи аналогов. При MAD=0 сохраняется вся выборка.
     """
     matches = select_comparables(records, **vehicle)
     candidate_count = len(matches)
-    prices = [item['price'] for item in matches]
-    if len(prices) >= 3:
-        center = median(prices)
-        mad = median(abs(price - center) for price in prices)
+    mad = None
+    if candidate_count >= 7:
+        center = median(item['price'] for item in matches)
+        mad = median(abs(item['price'] - center) for item in matches)
         if mad > 0:
-            matches = [item for item in matches if 0.67448975 * abs(item['price'] - center) / mad <= 3.5]
+            matches = [
+                item for item in matches
+                if 0.67448975 * abs(item['price'] - center) / mad <= 3.5
+            ]
+
     prices = [item['price'] for item in matches]
-    result = dict(status='insufficient_data', count=len(prices),
-                  candidate_count=candidate_count,
+    count = len(prices)
+    result = dict(status='insufficient_data', count=count,
+                  candidate_count=candidate_count, mad=mad,
                   method='median_mad', estimate=None, minimum=None, maximum=None,
                   comparables=matches)
-    if len(prices) >= 3:
-        result.update(status='ok', estimate=median(prices), minimum=min(prices), maximum=max(prices))
+    if count < 3:
+        return result
+
+    if count >= 7:
+        status = 'ok'
+    elif candidate_count >= 5:
+        status = 'preliminary'
+    else:
+        status = 'indicative'
+    result.update(status=status, estimate=median(prices),
+                  minimum=min(prices), maximum=max(prices))
     return result
