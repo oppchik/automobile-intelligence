@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 
 from . import schemas, models
 from .database import Base, engine, get_db
-from .data import BRANDS, REGIONS, CONDITIONS, CONDITION_LABELS, DAMAGE_CATEGORIES
-from .engine import run_calculation, compute_scenarios, build_part_offers, CalculationResult, Variant
+from .data import BRANDS, REGIONS, REGION_CENTERS, CONDITIONS, CONDITION_LABELS, DAMAGE_CATEGORIES
+from .engine import run_calculation, compute_scenarios, build_part_offers, build_sellers, CalculationResult, Variant
 from .repair_estimator import calculate_detailed_repair
 from .severity import MAX_BYTES, MAX_PHOTOS, severity_service
 
@@ -112,6 +112,14 @@ def parts(region: str, scale: float = 1.0):
     if region not in REGIONS:
         raise HTTPException(400, "Неизвестный регион")
     return build_part_offers(scale, region)
+
+
+@app.get("/api/sellers", response_model=schemas.SellersResponse)
+def sellers(region: str):
+    if region not in REGIONS:
+        raise HTTPException(400, "Неизвестный регион")
+    lat, lon = REGION_CENTERS[region]
+    return {"region": region, "center": {"lat": lat, "lon": lon}, "sellers": build_sellers(region)}
 
 
 @app.get("/api/history", response_model=list[schemas.HistoryOut])

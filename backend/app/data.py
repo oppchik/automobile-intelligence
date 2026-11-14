@@ -124,5 +124,29 @@ SELLERS: list[tuple[str, str]] = [
     ("Разборка 24", "used"),
 ]
 
+REGION_CENTERS: dict[str, tuple[float, float]] = {
+    "Москва и МО": (55.7558, 37.6173),
+    "Санкт-Петербург": (59.9343, 30.3351),
+    "Екатеринбург": (56.8389, 60.6057),
+    "Новосибирск": (55.0084, 82.9357),
+    "Казань": (55.7961, 49.1064),
+    "Краснодар": (45.0355, 38.9753),
+}
+
+SELLER_PROFILES: dict[str, dict] = {
+    "ЕвроАвто": {"kind": "Магазин", "source": "Прайс-лист продавца", "pickup_hours": "ежедневно 09:00–20:00",
+                 "delivery": (1, 3, 350), "max_price_age": 2},
+    "Bibinet": {"kind": "Онлайн-площадка", "source": "Агрегатор (демо-фид)", "pickup_hours": "пн–сб 10:00–19:00",
+                "delivery": (2, 5, 490), "max_price_age": 3},
+    "CTOgram": {"kind": "Онлайн-площадка", "source": "Агрегатор (демо-фид)", "pickup_hours": "пн–пт 10:00–18:00",
+                "delivery": (3, 6, 590), "max_price_age": 6},
+    "Авторазбор «Восток»": {"kind": "Авторазбор", "source": "Ручной ввод оператора", "pickup_hours": "пн–сб 09:00–18:00",
+                            "delivery": None, "max_price_age": 14},
+    "Дром Запчасти": {"kind": "Онлайн-площадка", "source": "Агрегатор (демо-фид)", "pickup_hours": "ежедневно 10:00–20:00",
+                      "delivery": (1, 4, 0), "max_price_age": 5},
+    "Разборка 24": {"kind": "Авторазбор", "source": "Ручной ввод оператора", "pickup_hours": "ежедневно 08:00–22:00",
+                    "delivery": None, "max_price_age": 10},
+}
+
 DIAGNOSTIC_FEE = 4500
 CONTINGENCY_RATE = 0.12

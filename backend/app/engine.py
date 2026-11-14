@@ -8,11 +8,13 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta, timezone
 
 from .data import (
     BRANDS, REGIONS, CONDITIONS, DAMAGE_CATEGORIES, PARTS_CATALOG,
-    SELLERS, DIAGNOSTIC_FEE, CONTINGENCY_RATE,
+    SELLERS, SELLER_PROFILES, REGION_CENTERS, DIAGNOSTIC_FEE, CONTINGENCY_RATE,
 )
 
 CURRENT_YEAR = 2026
@@ -185,7 +187,55 @@ def compute_scenarios(result: CalculationResult, variant_index: int, years: int)
     )
 
 
-def build_part_offers(scale: float, region: str) -> list[dict]:
+def _round5(value: float) -> float:
+    return math.floor(value * 1e5 + 0.5) / 1e5
+
+
+def _destination(lat: float, lon: float, distance_km: float, bearing_deg: float) -> tuple[float, float]:
+    angular = distance_km / 6371.0088
+    bearing = math.radians(bearing_deg)
+    lat1, lon1 = math.radians(lat), math.radians(lon)
+    lat2 = math.asin(math.sin(lat1) * math.cos(angular) + math.cos(lat1) * math.sin(angular) * math.cos(bearing))
+    lon2 = lon1 + math.atan2(math.sin(bearing) * math.sin(angular) * math.cos(lat1),
+                             math.cos(angular) - math.sin(lat1) * math.sin(lat2))
+    return _round5(math.degrees(lat2)), _round5(math.degrees(lon2))
+
+
+def build_sellers(region: str, today: date | None = None) -> list[dict]:
+    today = today or datetime.now(timezone.utc).date()
+    center_lat, center_lon = REGION_CENTERS[region]
+    points = []
+    for seller, condition_key in SELLERS:
+        profile = SELLER_PROFILES[seller]
+        distance = 2 + _hash(f"{seller}|{region}") % 19
+        bearing = _hash(f"bearing|{seller}|{region}") % 360
+        lat, lon = _destination(center_lat, center_lon, distance, bearing)
+        age = _hash(f"age|{seller}|{region}") % (profile["max_price_age"] + 1)
+        delivery = profile["delivery"]
+        points.append({
+            "id": f"{seller}|{region}",
+            "seller": seller,
+            "kind": profile["kind"],
+            "condition": condition_key,
+            "city": region,
+            "lat": lat,
+            "lon": lon,
+            "distance_km": distance,
+            "pickup": True,
+            "pickup_hours": profile["pickup_hours"],
+            "delivery": delivery is not None,
+            "delivery_days_min": delivery[0] if delivery else None,
+            "delivery_days_max": delivery[1] if delivery else None,
+            "delivery_cost": delivery[2] if delivery else None,
+            "source": profile["source"],
+            "price_date": (today - timedelta(days=age)).isoformat(),
+            "price_age_days": age,
+        })
+    return points
+
+
+def build_part_offers(scale: float, region: str, today: date | None = None) -> list[dict]:
+    sellers = {p["seller"]: p for p in build_sellers(region, today)}
     offers = []
     for name, entry in PARTS_CATALOG.items():
         for seller, condition_key in SELLERS:
@@ -193,14 +243,17 @@ def build_part_offers(scale: float, region: str) -> list[dict]:
             if not base:
                 continue
             h = _hash(name + seller)
+            point = sellers[seller]
             offers.append({
                 "name": name,
                 "oem": f"OEM {10000 + (_hash(name) % 89999)}",
                 "condition": condition_key,
                 "seller": seller,
                 "city": region,
-                "distance_km": 3 + (h % 38),
-                "delivery": h % 2 == 0,
+                "distance_km": point["distance_km"],
+                "delivery": point["delivery"],
+                "source": point["source"],
+                "price_date": point["price_date"],
                 "price": round(base * scale * (0.9 + (h % 25) / 100)),
                 "key": f"{name}|{seller}",
             })

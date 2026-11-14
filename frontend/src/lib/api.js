@@ -91,6 +91,17 @@ export async function fetchParts(region, scale) {
   }
 }
 
+export async function fetchSellers(region) {
+  try {
+    const data = await call(`/sellers?region=${encodeURIComponent(region)}`);
+    backendOk = true;
+    return { ...data, online: true };
+  } catch {
+    backendOk = false;
+    return { ...local.buildSellersResponse(region), online: false };
+  }
+}
+
 export async function fetchHistory() {
   const sessionId = getSessionId();
   try {
