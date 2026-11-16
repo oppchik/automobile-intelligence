@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Header, { BottomNav } from "./components/Header.jsx";
 import CalcPage from "./components/CalcPage.jsx";
 import PartsPage from "./components/PartsPage.jsx";
+import SellerMap from "./components/SellerMap.jsx";
 import HistoryPage from "./components/HistoryPage.jsx";
 import * as api from "./lib/api.js";
 import { load, save } from "./lib/storage.js";
@@ -12,6 +13,7 @@ export default function App() {
   const [history, setHistory] = useState(() => load("ai_history", []));
   const [watchList, setWatchList] = useState(() => load("ai_watchlist", []));
   const [partsCtx, setPartsCtx] = useState(() => load("ai_parts_ctx", { scale: 1, region: "Екатеринбург" }));
+  const [picked, setPicked] = useState(() => load("ai_picked_point", null));
   const [toast, setToast] = useState("");
   const [offline, setOffline] = useState(false);
 
@@ -26,6 +28,7 @@ export default function App() {
   useEffect(() => save("ai_history", history), [history]);
   useEffect(() => save("ai_watchlist", watchList), [watchList]);
   useEffect(() => save("ai_parts_ctx", partsCtx), [partsCtx]);
+  useEffect(() => save("ai_picked_point", picked), [picked]);
 
   useEffect(() => {
     if (!toast) return;
@@ -84,6 +87,17 @@ export default function App() {
             region={partsCtx.region}
             watchList={watchList}
             onToggleWatch={toggleWatch}
+            onToast={setToast}
+          />
+        </section>
+        <section className={"tab-panel" + (active === "map" ? " on" : "")}>
+          <SellerMap
+            regions={catalog.regions}
+            region={partsCtx.region}
+            scale={partsCtx.scale}
+            active={active === "map"}
+            picked={picked}
+            onPick={setPicked}
             onToast={setToast}
           />
         </section>

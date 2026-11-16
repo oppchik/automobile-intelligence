@@ -58,6 +58,24 @@ export const SELLERS = [
   ["Авторазбор «Восток»", "used"], ["Дром Запчасти", "new"], ["Разборка 24", "used"],
 ];
 
+export const REGION_CENTERS = {
+  "Москва и МО": [55.7558, 37.6173],
+  "Санкт-Петербург": [59.9343, 30.3351],
+  "Екатеринбург": [56.8389, 60.6057],
+  "Новосибирск": [55.0084, 82.9357],
+  "Казань": [55.7961, 49.1064],
+  "Краснодар": [45.0355, 38.9753],
+};
+
+export const SELLER_PROFILES = {
+  "ЕвроАвто": { kind: "Магазин", source: "Прайс-лист продавца", pickupHours: "ежедневно 09:00–20:00", delivery: [1, 3, 350], maxPriceAge: 2 },
+  "Bibinet": { kind: "Онлайн-площадка", source: "Агрегатор (демо-фид)", pickupHours: "пн–сб 10:00–19:00", delivery: [2, 5, 490], maxPriceAge: 3 },
+  "CTOgram": { kind: "Онлайн-площадка", source: "Агрегатор (демо-фид)", pickupHours: "пн–пт 10:00–18:00", delivery: [3, 6, 590], maxPriceAge: 6 },
+  "Авторазбор «Восток»": { kind: "Авторазбор", source: "Ручной ввод оператора", pickupHours: "пн–сб 09:00–18:00", delivery: null, maxPriceAge: 14 },
+  "Дром Запчасти": { kind: "Онлайн-площадка", source: "Агрегатор (демо-фид)", pickupHours: "ежедневно 10:00–20:00", delivery: [1, 4, 0], maxPriceAge: 5 },
+  "Разборка 24": { kind: "Авторазбор", source: "Ручной ввод оператора", pickupHours: "ежедневно 08:00–22:00", delivery: null, maxPriceAge: 10 },
+};
+
 const DIAGNOSTIC_FEE = 4500;
 const CONTINGENCY_RATE = 0.12;
 const CURRENT_YEAR = 2026;
@@ -183,16 +201,70 @@ export function computeScenarios(result, variantIndex, years) {
   return { cost, scenario1, scenario2, scenario3, upkeep_per_year: upkeep, decision, decision_label: decisionLabel, delta, repair_ratio: repairRatio };
 }
 
-export function buildPartOffers(scale, region) {
+const round5 = (x) => Math.floor(x * 1e5 + 0.5) / 1e5;
+const toRad = (d) => (d * Math.PI) / 180;
+const toDeg = (r) => (r * 180) / Math.PI;
+
+function destination(lat, lon, distanceKm, bearingDeg) {
+  const angular = distanceKm / 6371.0088;
+  const bearing = toRad(bearingDeg);
+  const lat1 = toRad(lat);
+  const lon1 = toRad(lon);
+  const lat2 = Math.asin(Math.sin(lat1) * Math.cos(angular) + Math.cos(lat1) * Math.sin(angular) * Math.cos(bearing));
+  const lon2 = lon1 + Math.atan2(Math.sin(bearing) * Math.sin(angular) * Math.cos(lat1),
+    Math.cos(angular) - Math.sin(lat1) * Math.sin(lat2));
+  return [round5(toDeg(lat2)), round5(toDeg(lon2))];
+}
+
+function isoMinusDays(today, days) {
+  const d = new Date(`${today}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
+export function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export function buildSellers(region, today = todayIso()) {
+  const [centerLat, centerLon] = REGION_CENTERS[region];
+  return SELLERS.map(([seller, condition]) => {
+    const profile = SELLER_PROFILES[seller];
+    const distance = 2 + (hashStr(`${seller}|${region}`) % 19);
+    const bearing = hashStr(`bearing|${seller}|${region}`) % 360;
+    const [lat, lon] = destination(centerLat, centerLon, distance, bearing);
+    const age = hashStr(`age|${seller}|${region}`) % (profile.maxPriceAge + 1);
+    const delivery = profile.delivery;
+    return {
+      id: `${seller}|${region}`, seller, kind: profile.kind, condition, city: region, lat, lon,
+      distance_km: distance, pickup: true, pickup_hours: profile.pickupHours,
+      delivery: delivery !== null,
+      delivery_days_min: delivery ? delivery[0] : null,
+      delivery_days_max: delivery ? delivery[1] : null,
+      delivery_cost: delivery ? delivery[2] : null,
+      source: profile.source, price_date: isoMinusDays(today, age), price_age_days: age,
+    };
+  });
+}
+
+export function buildSellersResponse(region, today = todayIso()) {
+  const [lat, lon] = REGION_CENTERS[region];
+  return { region, center: { lat, lon }, sellers: buildSellers(region, today) };
+}
+
+export function buildPartOffers(scale, region, today = todayIso()) {
+  const sellers = Object.fromEntries(buildSellers(region, today).map((p) => [p.seller, p]));
   const offers = [];
   for (const [name, entry] of Object.entries(PARTS_CATALOG)) {
     for (const [seller, conditionKey] of SELLERS) {
       const base = entry[conditionKey];
       if (!base) continue;
       const h = hashStr(name + seller);
+      const point = sellers[seller];
       offers.push({
         name, oem: `OEM ${10000 + (hashStr(name) % 89999)}`, condition: conditionKey, seller,
-        city: region, distance_km: 3 + (h % 38), delivery: h % 2 === 0,
+        city: region, distance_km: point.distance_km, delivery: point.delivery,
+        source: point.source, price_date: point.price_date,
         price: Math.round(base * scale * (0.9 + (h % 25) / 100)), key: `${name}|${seller}`,
       });
     }

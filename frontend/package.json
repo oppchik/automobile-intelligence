@@ -7,9 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test src/lib/engine.test.js src/lib/severity.test.js"
+    "test": "node --test src/lib/engine.test.js src/lib/severity.test.js src/lib/sellers.test.js"
   },
   "dependencies": {
+    "leaflet": "^1.9.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

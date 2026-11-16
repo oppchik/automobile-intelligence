@@ -3,6 +3,7 @@ import { CirTabs } from "./cirrus.jsx";
 const TABS = [
   { id: "calc", label: "Расчёт", icon: "⌂" },
   { id: "parts", label: "Запчасти", icon: "◫" },
+  { id: "map", label: "Карта", icon: "◎" },
   { id: "history", label: "История", icon: "▤" },
 ];
 

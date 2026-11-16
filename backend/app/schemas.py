@@ -181,3 +181,29 @@ class SeverityResponse(BaseModel):
     tau: float | None = None
     photos: list[SeverityPhoto]
     elapsed_ms: int
+
+
+class SellerPoint(BaseModel):
+    id: str
+    seller: str
+    kind: str
+    condition: Literal["new", "used"]
+    city: str
+    lat: float
+    lon: float
+    distance_km: int
+    pickup: bool
+    pickup_hours: str
+    delivery: bool
+    delivery_days_min: int | None = None
+    delivery_days_max: int | None = None
+    delivery_cost: int | None = None
+    source: str
+    price_date: str
+    price_age_days: int
+
+
+class SellersResponse(BaseModel):
+    region: str
+    center: dict[str, float]
+    sellers: list[SellerPoint]
