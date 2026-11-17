@@ -82,4 +82,5 @@ def calculate_detailed_repair(**request):
                 diagnostic_base=DIAGNOSTIC_FEE, contingency_rate=CONTINGENCY_RATE,
                 hours_by_category=hours, total_hours=sum(hours.values()),
                 cheapest=min(variants, key=lambda v: v['cost'])['key'],
-                used_parts_applicable=bool(result.required_parts), variants=variants)
+                used_parts_applicable=any(PARTS_CATALOG[name].get('used') for name in result.required_parts),
+                variants=variants)

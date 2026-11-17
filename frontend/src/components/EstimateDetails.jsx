@@ -125,7 +125,7 @@ export function EstimateBreakdown({ estimate, variantIndex }) {
       </div>
       <p className="note">
         Сумма = базовая цена {coef(estimate.scale)} (класс автомобиля) {coef(v.parts_markup)} (наценка варианта).
-        {!estimate.used_parts_applicable && v.key === "used" && " В этом ремонте нет заменяемых деталей, поэтому б/у запчасти ничего не меняют: цена совпадает с независимым сервисом."}
+        {!estimate.used_parts_applicable && v.key === "used" && " В этом ремонте нет деталей с б/у ценой, поэтому б/у запчасти ничего не меняют: цена совпадает с независимым сервисом."}
       </p>
 
       <h3 className="est-h">Итоговая сумма</h3>
