@@ -257,7 +257,7 @@ function ResultView({ result, scenarios, estimate, variantIndex, onVariantChange
                 <small>Дешевле дилера на {fmt(estimate.variants[i].savings_vs_dealer)}</small>
               )}
               {estimate && !estimate.used_parts_applicable && v.key === "used" && (
-                <small>Заменяемых деталей нет — цена как у независимого сервиса</small>
+                <small>Б/у деталей для этого ремонта нет — цена как у независимого сервиса</small>
               )}
             </label>
           ))}

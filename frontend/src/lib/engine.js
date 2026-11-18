@@ -343,6 +343,6 @@ export function buildEstimate(result) {
     region_coefficient: regionalRate, base_hourly_rate: BASE_HOURLY_RATE,
     diagnostic_base: DIAGNOSTIC_FEE, contingency_rate: CONTINGENCY_RATE,
     hours_by_category: hours, total_hours: totalHours, cheapest: cheapest.key,
-    used_parts_applicable: result.required_parts.length > 0, variants,
+    used_parts_applicable: result.required_parts.some((name) => Boolean(PARTS_CATALOG[name].used)), variants,
   };
 }
