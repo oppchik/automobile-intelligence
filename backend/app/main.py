@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from .financial_api import router as financial_router
 
 from . import schemas, models
 from .database import Base, engine, get_db
@@ -10,6 +11,8 @@ from .engine import run_calculation, compute_scenarios, build_part_offers, Calcu
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Авто-Интеллект API", version="0.1.0")
+
+app.include_router(financial_router)
 
 app.add_middleware(
     CORSMiddleware,
