@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from .financial_api import router as financial_router
 
 from . import schemas, models
 from .database import Base, engine, get_db
@@ -12,6 +13,8 @@ from .severity import MAX_BYTES, MAX_PHOTOS, severity_service
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Авто-Интеллект API", version="0.1.0")
+
+app.include_router(financial_router)
 
 app.add_middleware(
     CORSMiddleware,
