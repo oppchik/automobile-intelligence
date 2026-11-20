@@ -5,8 +5,16 @@ from .financial_api import router as financial_router
 
 from . import schemas, models
 from .database import Base, engine, get_db
-from .data import BRANDS, REGIONS, CONDITIONS, CONDITION_LABELS, DAMAGE_CATEGORIES
+from .data import (
+    BRANDS,
+    REGIONS,
+    CONDITIONS,
+    CONDITION_LABELS,
+    DAMAGE_CATEGORIES,
+    VIN_PARTS_INDEX,
+)
 from .engine import run_calculation, compute_scenarios, build_part_offers, CalculationResult, Variant
+from .parts_algorithms import search_parts
 
 Base.metadata.create_all(bind=engine)
 
@@ -97,11 +105,37 @@ def scenarios(req: schemas.ScenarioRequest):
     )
 
 
+
 @app.get("/api/parts")
-def parts(region: str, scale: float = 1.0):
+def parts(
+    region: str,
+    scale: float = 1.0,
+    query: str = "",
+    condition: str | None = None,
+    max_price: float | None = None,
+    max_distance_km: float | None = None,
+    sort_by: str = "price",
+):
     if region not in REGIONS:
         raise HTTPException(400, "Неизвестный регион")
-    return build_part_offers(scale, region)
+
+    try:
+        offers = build_part_offers(scale, region)
+
+        return search_parts(
+            offers,
+            query=query,
+            condition=condition or None,
+            region=region,
+            max_price=max_price,
+            max_distance_km=max_distance_km,
+            sort_by=sort_by,
+            vin_index=VIN_PARTS_INDEX,
+        )
+
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
 
 
 @app.get("/api/history", response_model=list[schemas.HistoryOut])
