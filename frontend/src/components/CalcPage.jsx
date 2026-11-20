@@ -1,12 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fmt } from "../lib/engine.js";
+import { suggestedSeverity } from "../lib/severity.js";
 import * as api from "../lib/api.js";
 import { Card, Field, Segmented } from "./ui.jsx";
 import { CirButton, CirCheck } from "./cirrus.jsx";
+import { VariantCompare, EstimateBreakdown } from "./EstimateDetails.jsx";
+import PhotoSeverity from "./PhotoSeverity.jsx";
+import AdvisorCard from "./AdvisorCard.jsx";
+import { applySelectedParts } from "../lib/estimateParts.js";
 
 const DECISION_ICON = { repair: "✓", sell: "○", inspect: "!" };
 
-export default function CalcPage({ catalog, onSaveHistory, offline }) {
+export default function CalcPage({ catalog, onSaveHistory, offline, prefill, selectedParts = [], onRemovePart }) {
   const brands = catalog.brands;
   const regions = catalog.regions;
   const conditions = catalog.conditions;
@@ -21,14 +26,53 @@ export default function CalcPage({ catalog, onSaveHistory, offline }) {
   const [description, setDescription] = useState("");
   const [categories, setCategories] = useState([]);
   const [photos, setPhotos] = useState([]);
+  const [severityResult, setSeverityResult] = useState(null);
+  const [severityLoading, setSeverityLoading] = useState(false);
+  const [photoSeverity, setPhotoSeverity] = useState(null);
+  const classifyRef = useRef(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [variantIndex, setVariantIndex] = useState(1);
   const [years, setYears] = useState(2);
   const [scenarios, setScenarios] = useState(null);
+  const [estimate, setEstimate] = useState(null);
 
-  useEffect(() => { setModel(Object.keys(brands[brand])[0]); }, [brand]); // eslint-disable-line
+  const integrated = applySelectedParts(estimate, selectedParts);
+  const pendingModel = useRef(null);
+  const [autoRun, setAutoRun] = useState(0);
+
+  useEffect(() => {
+    const names = Object.keys(brands[brand]);
+    const wanted = pendingModel.current;
+    pendingModel.current = null;
+    setModel(wanted && names.includes(wanted) ? wanted : names[0]);
+  }, [brand]); // eslint-disable-line
+
+  useEffect(() => {
+    if (!prefill) return;
+    const x = prefill.entry;
+    if (!brands[x.brand]) return;
+    pendingModel.current = x.brand === brand ? null : x.model;
+    setModel(x.model);
+    setBrand(x.brand);
+    setYear(x.year);
+    setMileage(x.mileage);
+    if (regions.includes(x.region)) setRegion(x.region);
+    if (conditions.some((c) => c.value === x.condition)) setCondition(x.condition);
+    setCategories(x.categories.filter((c) => damageCategories.some((d) => d.value === c)));
+    setDescription("");
+    setPhotos([]);
+    setSeverityResult(null);
+    setPhotoSeverity(null);
+    setYears(x.years);
+    setVariantIndex(x.variant_index);
+    setAutoRun((n) => n + 1);
+  }, [prefill]); // eslint-disable-line
+
+  useEffect(() => {
+    if (autoRun > 0) handleCalculate();
+  }, [autoRun]); // eslint-disable-line
 
   function toggleCategory(value, checked) {
     setCategories((prev) => (checked ? [...new Set([...prev, value])] : prev.filter((c) => c !== value)));
@@ -37,6 +81,22 @@ export default function CalcPage({ catalog, onSaveHistory, offline }) {
   function handlePhotos(e) {
     const files = [...e.target.files].slice(0, 6);
     setPhotos(files.map((f) => URL.createObjectURL(f)));
+    runClassification(files);
+  }
+
+  async function runClassification(files) {
+    if (classifyRef.current) classifyRef.current.abort();
+    setSeverityResult(null);
+    setPhotoSeverity(null);
+    if (files.length === 0) return setSeverityLoading(false);
+    const controller = new AbortController();
+    classifyRef.current = controller;
+    setSeverityLoading(true);
+    const res = await api.classifyPhotos(files, controller.signal);
+    if (controller.signal.aborted || !res) return;
+    setSeverityResult(res);
+    setPhotoSeverity(suggestedSeverity(res));
+    setSeverityLoading(false);
   }
 
   async function handleCalculate() {
@@ -49,19 +109,21 @@ export default function CalcPage({ catalog, onSaveHistory, offline }) {
     setLoading(true);
     setResult(null);
     setScenarios(null);
+    setEstimate(null);
 
     const payload = {
       brand, model, year: +year, mileage: +mileage, region, condition,
-      description, damage_categories: categories, photo_count: photos.length,
+      description, damage_categories: categories, photo_count: photos.length, photo_severity: photoSeverity,
     };
     const started = Date.now();
     const r = await api.calculate(payload);
-    const s = await api.fetchScenarios(r, variantIndex, years);
+    const [s, e] = await Promise.all([api.fetchScenarios(r, variantIndex, years), api.fetchEstimate(payload, r)]);
     const elapsed = Date.now() - started;
     if (elapsed < 500) await new Promise((res) => setTimeout(res, 500 - elapsed));
 
     setResult(r);
     setScenarios(s);
+    setEstimate(e);
     setLoading(false);
     onSaveHistory(r, s, variantIndex, years);
   }
@@ -138,12 +200,29 @@ export default function CalcPage({ catalog, onSaveHistory, offline }) {
           {photos.length > 0 && (
             <div className="thumbs">{photos.map((src, i) => <img key={i} src={src} alt="" />)}</div>
           )}
+          <PhotoSeverity result={severityResult} loading={severityLoading} value={photoSeverity} onChange={setPhotoSeverity} />
         </Field>
-        <CirButton className="cir-btn--block" arrow={false} onClick={handleCalculate} disabled={loading}>
+        <CirButton className="cir-btn--block" arrow={false} onClick={handleCalculate} disabled={loading || severityLoading}>
           Рассчитать
         </CirButton>
         <div className="err-text">{error}</div>
       </Card>
+
+      {selectedParts.length > 0 && (
+        <Card title="Выбранные детали из агрегатора">
+          {selectedParts.map((part) => (
+            <div key={part.key} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 10 }}>
+              <span>{part.name} ({part.oem}) · {part.seller}</span>
+              <b>{fmt(part.price * part.quantity)}</b>
+              <button type="button" onClick={() => onRemovePart(part.key)}>Удалить</button>
+            </div>
+          ))}
+          <p><b>Стоимость выбранных деталей: {fmt(selectedParts.reduce((sum, part) => sum + part.price * part.quantity, 0))}</b></p>
+          <p className="note">Совпадающие по названию позиции заменяют расчётные цены в расшифровке сметы. Несовпадающие позиции не включаются автоматически.</p>
+          {integrated.replacements.length > 0 && <p className="note">Учтено в смете: {integrated.replacements.map((p) => p.name).join(", ")}</p>}
+          {integrated.unmatched.length > 0 && <p className="note">Не сопоставлено: {integrated.unmatched.map((p) => p.name).join(", ")}</p>}
+        </Card>
+      )}
 
       {loading && (
         <Card>
@@ -167,16 +246,17 @@ export default function CalcPage({ catalog, onSaveHistory, offline }) {
 
       {!loading && result && scenarios && (
         <ResultView
-          result={result} scenarios={scenarios} variantIndex={variantIndex}
+          result={result} scenarios={scenarios} estimate={integrated.estimate} variantIndex={variantIndex}
           onVariantChange={changeVariant} years={years} onYearsChange={changeYears}
           offline={offline || !result.online}
+          onSaveAdvisor={(advisor) => onSaveHistory(result, scenarios, variantIndex, years, advisor)}
         />
       )}
     </div>
   );
 }
 
-function ResultView({ result, scenarios, variantIndex, onVariantChange, years, onYearsChange, offline }) {
+function ResultView({ result, scenarios, estimate, variantIndex, onVariantChange, years, onYearsChange, offline, onSaveAdvisor }) {
   const s = scenarios;
   const variant = result.variants[variantIndex];
   const maxAbs = Math.max(Math.abs(s.scenario1), Math.abs(s.scenario2), Math.abs(s.scenario3), 1);
@@ -216,6 +296,7 @@ function ResultView({ result, scenarios, variantIndex, onVariantChange, years, o
       </div>
 
       <Card title="Смета ремонта">
+        {estimate && <p className="note">Итог с выбранными деталями: {fmt(estimate.variants[variantIndex].amounts.total)}. Предложения продавцов учитываются только при совпадении названий.</p>}
         <div className="variants">
           {result.variants.map((v, i) => (
             <label key={v.name} className={"variant" + (i === variantIndex ? " on" : "")}>
@@ -225,10 +306,20 @@ function ResultView({ result, scenarios, variantIndex, onVariantChange, years, o
               <div className="split-bar"><i style={{ width: `${(v.partsCost ?? v.parts_cost) / v.cost * 100}%` }} /></div>
               <small>Запчасти {fmt(v.partsCost ?? v.parts_cost)} · Работа {fmt(v.laborCost ?? v.labor_cost)}</small>
               <small>Срок: {v.eta}</small>
+              {estimate && estimate.cheapest === v.key && <small className="v-best">Самый выгодный по цене</small>}
+              {estimate && estimate.variants[i].savings_vs_dealer > 0 && (
+                <small>Дешевле дилера на {fmt(estimate.variants[i].savings_vs_dealer)}</small>
+              )}
+              {estimate && !estimate.used_parts_applicable && v.key === "used" && (
+                <small>Б/у деталей для этого ремонта нет — цена как у независимого сервиса</small>
+              )}
             </label>
           ))}
         </div>
+        {estimate && <VariantCompare estimate={estimate} variantIndex={variantIndex} />}
       </Card>
+
+      {estimate && <EstimateBreakdown estimate={estimate} variantIndex={variantIndex} />}
 
       <Card title="Рыночная цена автомобиля">
         <div className="kv-grid">
@@ -261,6 +352,8 @@ function ResultView({ result, scenarios, variantIndex, onVariantChange, years, o
           {" "}Прогноз {fmt(result.after_value)} {margin >= 0 ? "выше" : "ниже"} этого порога на {Math.abs(margin).toFixed(1)}%.
         </p>
       </Card>
+
+      <AdvisorCard result={result} scenarios={scenarios} onSave={onSaveAdvisor} />
 
       <p className="note">Расчёт носит справочный характер и служит вторым мнением. Используются демонстрационные данные по ценам и нормо-часам.</p>
     </div>
