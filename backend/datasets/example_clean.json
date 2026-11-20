@@ -1,0 +1,32 @@
+[
+  {
+    "source": "demo",
+    "source_id": "1",
+    "brand": "kia",
+    "model": "rio",
+    "year": 2018,
+    "mileage": 85000,
+    "region": "екатеринбург",
+    "price": 850000
+  },
+  {
+    "source": "demo",
+    "source_id": "2",
+    "brand": "kia",
+    "model": "rio",
+    "year": 2019,
+    "mileage": 90000,
+    "region": "екатеринбург",
+    "price": 900000
+  },
+  {
+    "source": "demo",
+    "source_id": "3",
+    "brand": "kia",
+    "model": "rio",
+    "year": 2017,
+    "mileage": 100000,
+    "region": "екатеринбург",
+    "price": 800000
+  }
+]

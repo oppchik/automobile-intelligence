@@ -1,241 +1,87 @@
-
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { fmt } from "../lib/engine.js";
 import * as api from "../lib/api.js";
 import { Card } from "./ui.jsx";
 import { CirSearch } from "./cirrus.jsx";
 
-export default function PartsPage({
-                                    scale,
-                                    region,
-                                    regions = [],
-                                    onRegionChange,
-                                    watchList,
-                                    onToggleWatch,
-                                    onToast,
-                                  }) {
+export default function PartsPage({ scale, region, watchList, onToggleWatch, onToast, onAddToEstimate }) {
   const [query, setQuery] = useState("");
   const [condition, setCondition] = useState("");
   const [sort, setSort] = useState("price");
-  const [maxPrice, setMaxPrice] = useState("");
-  const [maxDistance, setMaxDistance] = useState("");
-  const [selectedRegion, setSelectedRegion] = useState(region);
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setSelectedRegion(region);
-  }, [region]);
-
-  useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    api.fetchParts(region, scale).then((data) => {
+      if (!cancelled) { setOffers(data); setLoading(false); }
+    });
+    return () => { cancelled = true; };
+  }, [region, scale]);
 
-    const timer = setTimeout(async () => {
-      try {
-        const data = await api.fetchParts(selectedRegion, scale, {
-          query,
-          condition,
-          max_price: maxPrice,
-          max_distance_km: maxDistance,
-          sort_by: sort,
-        });
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    let list = offers.filter((o) => (!condition || o.condition === condition) &&
+      (!q || o.name.toLowerCase().includes(q) || o.oem.toLowerCase().includes(q)));
+    list.sort((a, b) => (sort === "price" ? a.price - b.price : a.distance_km - b.distance_km));
+    return list.slice(0, 40);
+  }, [offers, query, condition, sort]);
 
-        if (!cancelled) {
-          setOffers(Array.isArray(data) ? data.slice(0, 40) : []);
-          setLoading(false);
-        }
-      } catch {
-        if (!cancelled) {
-          setOffers([]);
-          setLoading(false);
-        }
-      }
-    }, 250);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [
-    selectedRegion,
-    scale,
-    query,
-    condition,
-    maxPrice,
-    maxDistance,
-    sort,
-  ]);
-
-  async function toggle(offer) {
-    const wasWatched = watchList.includes(offer.key);
-    const remoteResult = await api.toggleWatch(offer.key);
-
-    onToggleWatch(offer.key, remoteResult);
-
-    onToast(
-        wasWatched
-            ? "Отслеживание отключено"
-            : "Уведомим, если цена снизится"
-    );
+  async function toggle(o) {
+    const wasWatched = watchList.includes(o.key);
+    const remoteResult = await api.toggleWatch(o.key);
+    onToggleWatch(o.key, remoteResult);
+    onToast(wasWatched ? "Отслеживание отключено" : "Уведомим, если цена снизится");
   }
 
-  const regionOptions = [...new Set([
-    ...regions,
-    selectedRegion,
-  ].filter(Boolean))];
-
   return (
-      <Card title="Агрегатор запчастей">
-        <div className="parts-filters">
-
-          <div className="parts-search">
-            <CirSearch
-                placeholder="Поиск по VIN, OEM или названию"
-                value={query}
-                onChange={setQuery}
-            />
-          </div>
-
-          <div className="parts-filter">
-            <label>Регион</label>
-            <select
-                value={selectedRegion}
-                onChange={(e) => {
-                  setSelectedRegion(e.target.value);
-                  onRegionChange?.(e.target.value);
-                }}
-            >
-              {regionOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="parts-filter">
-            <label>Состояние</label>
-            <select
-                value={condition}
-                onChange={(e) => setCondition(e.target.value)}
-            >
-              <option value="">Любое</option>
-              <option value="new">Новые</option>
-              <option value="used">Б/у</option>
-            </select>
-          </div>
-
-          <div className="parts-filter">
-            <label>Максимальная цена, ₽</label>
-            <input
-                type="number"
-                min="0"
-                placeholder="Без ограничения"
-                value={maxPrice}
-                onChange={(e) => setMaxPrice(e.target.value)}
-            />
-          </div>
-
-          <div className="parts-filter">
-            <label>Расстояние, км</label>
-            <input
-                type="number"
-                min="0"
-                placeholder="Без ограничения"
-                value={maxDistance}
-                onChange={(e) => setMaxDistance(e.target.value)}
-            />
-          </div>
-
-          <div className="parts-filter">
-            <label>Сортировка</label>
-            <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value)}
-            >
-              <option value="price">Сначала дешевле</option>
-              <option value="distance">Сначала ближе</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="parts-results">
-          {loading && (
-              <div className="loading-state">
-                <div className="spinner" />
-                Загружаем предложения…
-              </div>
-          )}
-
-          {!loading && offers.length === 0 && (
-              <div className="empty-state">
-                <div className="ic">⌕</div>
-                Предложения не найдены. Попробуйте изменить параметры поиска.
-              </div>
-          )}
-
-          {!loading && offers.map((offer) => {
-            const watched = watchList.includes(offer.key);
-
-            return (
-                <article
-                    className="parts-offer"
-                    key={offer.key + offer.city}
-                >
-                  <div className="parts-offer-top">
-                    <div>
-                      <h3>{offer.name}</h3>
-                      <small>{offer.oem}</small>
-                    </div>
-
-                    <button
-                        className={"star-btn" + (watched ? " on" : "")}
-                        onClick={() => toggle(offer)}
-                        aria-label="Отслеживать цену"
-                    >
+    <Card title="Агрегатор запчастей">
+      <div className="toolbar">
+        <CirSearch placeholder="Поиск по названию или OEM-коду" value={query} onChange={setQuery} />
+        <select value={condition} onChange={(e) => setCondition(e.target.value)}>
+          <option value="">Любое состояние</option>
+          <option value="new">Новые</option>
+          <option value="used">Б/у</option>
+        </select>
+        <select value={sort} onChange={(e) => setSort(e.target.value)}>
+          <option value="price">Сначала дешевле</option>
+          <option value="distance">Сначала ближе</option>
+        </select>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr><th></th><th>Деталь</th><th>Состояние</th><th>Продавец</th><th>Город</th><th>Доставка</th><th>Цена</th><th>Смета</th></tr>
+          </thead>
+          <tbody>
+            {loading && <tr><td colSpan={8} className="empty-state">Загружаем предложения…</td></tr>}
+            {!loading && filtered.length === 0 && (
+              <tr><td colSpan={8} className="empty-state">Ничего не найдено</td></tr>
+            )}
+            {!loading && filtered.map((o) => {
+              const watched = watchList.includes(o.key);
+              return (
+                <tr key={o.key + o.city}>
+                  <td>
+                    <button className={"star-btn" + (watched ? " on" : "")} onClick={() => toggle(o)}>
                       {watched ? "★" : "☆"}
                     </button>
-                  </div>
-
-                  <div className="parts-offer-tags">
-                <span className={
-                    "tag " +
-                    (offer.condition === "new" ? "tag-new" : "tag-used")
-                }>
-                  {offer.condition === "new" ? "Новая" : "Б/у"}
-                </span>
-
-                    <span className="parts-delivery">
-                  {offer.delivery ? "Доставка доступна" : "Самовывоз"}
-                </span>
-                  </div>
-
-                  <div className="parts-seller">
-                    <div>
-                      <small>Продавец</small>
-                      <b>{offer.seller}</b>
-                    </div>
-
-                    <div>
-                      <small>Регион</small>
-                      <b>{offer.city}</b>
-                    </div>
-                  </div>
-
-                  <div className="parts-offer-bottom">
-                    <span>{offer.distance_km} км</span>
-                    <strong>{fmt(offer.price)}</strong>
-                  </div>
-                </article>
-            );
-          })}
-        </div>
-
-        <p className="note">
-          Добавьте запчасть в отслеживание, нажав ★.
-          Вы сможете следить за изменением её стоимости.
-        </p>
-      </Card>
+                  </td>
+                  <td><b>{o.name}</b><br /><small style={{ color: "var(--muted)" }}>{o.oem}</small></td>
+                  <td><span className={"tag " + (o.condition === "new" ? "tag-new" : "tag-used")}>{o.condition === "new" ? "Новая" : "Б/у"}</span></td>
+                  <td>{o.seller}</td>
+                  <td>{o.city}<br /><small style={{ color: "var(--muted)" }}>{o.distance_km} км</small></td>
+                  <td>{o.delivery ? "Есть" : "Самовывоз"}</td>
+                  <td><b>{fmt(o.price)}</b></td>
+                  <td><button type="button" onClick={() => onAddToEstimate(o)}>В смету</button></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="note">Нажмите ★, чтобы получать уведомления о снижении цены на деталь.</p>
+    </Card>
   );
 }

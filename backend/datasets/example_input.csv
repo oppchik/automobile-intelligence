@@ -1,0 +1,4 @@
+source,source_id,brand,model,year,mileage,region,price
+DEMO,1,Kia,Rio,2018,85000,Екатеринбург,850000
+DEMO,2,Kia,Rio,2019,90000,Екатеринбург,900000
+DEMO,3,Kia,Rio,2017,100000,Екатеринбург,800000

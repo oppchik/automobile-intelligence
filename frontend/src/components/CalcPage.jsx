@@ -7,10 +7,11 @@ import { CirButton, CirCheck } from "./cirrus.jsx";
 import { VariantCompare, EstimateBreakdown } from "./EstimateDetails.jsx";
 import PhotoSeverity from "./PhotoSeverity.jsx";
 import AdvisorCard from "./AdvisorCard.jsx";
+import { applySelectedParts } from "../lib/estimateParts.js";
 
 const DECISION_ICON = { repair: "✓", sell: "○", inspect: "!" };
 
-export default function CalcPage({ catalog, onSaveHistory, offline, prefill }) {
+export default function CalcPage({ catalog, onSaveHistory, offline, prefill, selectedParts = [], onRemovePart }) {
   const brands = catalog.brands;
   const regions = catalog.regions;
   const conditions = catalog.conditions;
@@ -37,6 +38,7 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill }) {
   const [scenarios, setScenarios] = useState(null);
   const [estimate, setEstimate] = useState(null);
 
+  const integrated = applySelectedParts(estimate, selectedParts);
   const pendingModel = useRef(null);
   const [autoRun, setAutoRun] = useState(0);
 
@@ -206,6 +208,22 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill }) {
         <div className="err-text">{error}</div>
       </Card>
 
+      {selectedParts.length > 0 && (
+        <Card title="Выбранные детали из агрегатора">
+          {selectedParts.map((part) => (
+            <div key={part.key} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 10 }}>
+              <span>{part.name} ({part.oem}) · {part.seller}</span>
+              <b>{fmt(part.price * part.quantity)}</b>
+              <button type="button" onClick={() => onRemovePart(part.key)}>Удалить</button>
+            </div>
+          ))}
+          <p><b>Стоимость выбранных деталей: {fmt(selectedParts.reduce((sum, part) => sum + part.price * part.quantity, 0))}</b></p>
+          <p className="note">Совпадающие по названию позиции заменяют расчётные цены в расшифровке сметы. Несовпадающие позиции не включаются автоматически.</p>
+          {integrated.replacements.length > 0 && <p className="note">Учтено в смете: {integrated.replacements.map((p) => p.name).join(", ")}</p>}
+          {integrated.unmatched.length > 0 && <p className="note">Не сопоставлено: {integrated.unmatched.map((p) => p.name).join(", ")}</p>}
+        </Card>
+      )}
+
       {loading && (
         <Card>
           <div className="loading-state">
@@ -228,7 +246,7 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill }) {
 
       {!loading && result && scenarios && (
         <ResultView
-          result={result} scenarios={scenarios} estimate={estimate} variantIndex={variantIndex}
+          result={result} scenarios={scenarios} estimate={integrated.estimate} variantIndex={variantIndex}
           onVariantChange={changeVariant} years={years} onYearsChange={changeYears}
           offline={offline || !result.online}
           onSaveAdvisor={(advisor) => onSaveHistory(result, scenarios, variantIndex, years, advisor)}
@@ -278,6 +296,7 @@ function ResultView({ result, scenarios, estimate, variantIndex, onVariantChange
       </div>
 
       <Card title="Смета ремонта">
+        {estimate && <p className="note">Итог с выбранными деталями: {fmt(estimate.variants[variantIndex].amounts.total)}. Предложения продавцов учитываются только при совпадении названий.</p>}
         <div className="variants">
           {result.variants.map((v, i) => (
             <label key={v.name} className={"variant" + (i === variantIndex ? " on" : "")}>

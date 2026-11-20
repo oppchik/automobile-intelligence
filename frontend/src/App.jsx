@@ -19,6 +19,7 @@ export default function App() {
   const [offline, setOffline] = useState(false);
   const [user, setUser] = useState(null);
   const [recalc, setRecalc] = useState(null);
+  const [selectedParts, setSelectedParts] = useState(() => load("ai_selected_parts", []));
 
   useEffect(() => {
     api.fetchCatalog().then((c) => { setCatalog(c); setOffline(!c.online); });
@@ -43,6 +44,7 @@ export default function App() {
 
   useEffect(() => save("ai_history", history), [history]);
   useEffect(() => save("ai_watchlist", watchList), [watchList]);
+  useEffect(() => save("ai_selected_parts", selectedParts), [selectedParts]);
   useEffect(() => save("ai_parts_ctx", partsCtx), [partsCtx]);
   useEffect(() => save("ai_picked_point", picked), [picked]);
 
@@ -100,6 +102,12 @@ export default function App() {
     setHistory([]);
   }
 
+  function addPartToEstimate(part) {
+    setSelectedParts((items) => [...items.filter((item) => item.key !== part.key), { key: part.key, name: part.name, oem: part.oem, price: part.price, seller: part.seller, condition: part.condition, quantity: 1 }]);
+    setToast("Деталь добавлена в смету");
+    setActive("calc");
+  }
+
   async function toggleWatch(key, remoteResult) {
     setWatchList((w) => {
       if (remoteResult !== null) return remoteResult ? [...new Set([...w, key])] : w.filter((k) => k !== key);
@@ -123,22 +131,16 @@ export default function App() {
       <Header active={active} onChange={setActive} />
       <main>
         <section className={"tab-panel" + (active === "calc" ? " on" : "")}>
-          <CalcPage catalog={catalog} onSaveHistory={saveHistory} offline={offline} prefill={recalc} />
+          <CalcPage catalog={catalog} onSaveHistory={saveHistory} offline={offline} prefill={recalc} selectedParts={selectedParts} onRemovePart={(key) => setSelectedParts((items) => items.filter((item) => item.key !== key))} />
         </section>
         <section className={"tab-panel" + (active === "parts" ? " on" : "")}>
           <PartsPage
-              scale={partsCtx.scale}
-              region={partsCtx.region}
-              regions={catalog.regions}
-              onRegionChange={(nextRegion) =>
-                  setPartsCtx((current) => ({
-                    ...current,
-                    region: nextRegion,
-                  }))
-              }
-              watchList={watchList}
-              onToggleWatch={toggleWatch}
-              onToast={setToast}
+            scale={partsCtx.scale}
+            region={partsCtx.region}
+            watchList={watchList}
+            onToggleWatch={toggleWatch}
+            onToast={setToast}
+            onAddToEstimate={addPartToEstimate}
           />
         </section>
         <section className={"tab-panel" + (active === "map" ? " on" : "")}>
