@@ -37,6 +37,7 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill, sel
   const [years, setYears] = useState(2);
   const [scenarios, setScenarios] = useState(null);
   const [estimate, setEstimate] = useState(null);
+  const [market, setMarket] = useState(null);
 
   const integrated = applySelectedParts(estimate, selectedParts);
   const pendingModel = useRef(null);
@@ -110,6 +111,7 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill, sel
     setResult(null);
     setScenarios(null);
     setEstimate(null);
+    setMarket(null);
 
     const payload = {
       brand, model, year: +year, mileage: +mileage, region, condition,
@@ -124,6 +126,12 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill, sel
     setResult(r);
     setScenarios(s);
     setEstimate(e);
+    const marketResult = await api.fetchMarketValue({
+      brand: r.brand, model: r.model, year: r.year, mileage: r.mileage,
+      region: r.region, repair_cost: e?.variants?.[variantIndex]?.amounts?.total ?? r.variants[variantIndex].cost,
+      severity: r.severity,
+    });
+    setMarket(marketResult);
     setLoading(false);
     onSaveHistory(r, s, variantIndex, years);
   }
@@ -133,6 +141,12 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill, sel
     if (!result) return;
     const s = await api.fetchScenarios(result, i, years);
     setScenarios(s);
+    setMarket(await api.fetchMarketValue({
+      brand: result.brand, model: result.model, year: result.year,
+      mileage: result.mileage, region: result.region,
+      repair_cost: integrated.estimate?.variants?.[i]?.amounts?.total ?? result.variants[i].cost,
+      severity: result.severity,
+    }));
     onSaveHistory(result, s, i, years);
   }
 
@@ -246,7 +260,7 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill, sel
 
       {!loading && result && scenarios && (
         <ResultView
-          result={result} scenarios={scenarios} estimate={integrated.estimate} variantIndex={variantIndex}
+          result={result} scenarios={scenarios} estimate={integrated.estimate} market={market} variantIndex={variantIndex}
           onVariantChange={changeVariant} years={years} onYearsChange={changeYears}
           offline={offline || !result.online}
           onSaveAdvisor={(advisor) => onSaveHistory(result, scenarios, variantIndex, years, advisor)}
@@ -256,7 +270,7 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill, sel
   );
 }
 
-function ResultView({ result, scenarios, estimate, variantIndex, onVariantChange, years, onYearsChange, offline, onSaveAdvisor }) {
+function ResultView({ result, scenarios, estimate, market, variantIndex, onVariantChange, years, onYearsChange, offline, onSaveAdvisor }) {
   const s = scenarios;
   const variant = result.variants[variantIndex];
   const maxAbs = Math.max(Math.abs(s.scenario1), Math.abs(s.scenario2), Math.abs(s.scenario3), 1);
@@ -327,7 +341,19 @@ function ResultView({ result, scenarios, estimate, variantIndex, onVariantChange
           <div><span>Как есть (с повреждениями)</span><b>{fmt(result.as_is_value)}</b></div>
           <div><span>После ремонта</span><b>{fmt(result.after_value)}</b></div>
         </div>
-        <p className="note">Оценка основана на аналогичных объявлениях с учётом региона, года, пробега и состояния до поломки.</p>
+        <p className="note">Значения выше рассчитаны исходным демонстрационным движком. Независимая оценка по объявлениям приведена ниже.</p>
+        {market?.after_repair && market?.as_is ? (
+          <div style={{ marginTop: 14 }}>
+            <h4>Оценка по тестовым объявлениям</h4>
+            <div className="kv-grid">
+              <div><span>Как есть</span><b>{fmt(market.as_is.estimate)}</b><small>Диапазон: {fmt(market.as_is.minimum)} — {fmt(market.as_is.maximum)}</small></div>
+              <div><span>После ремонта</span><b>{fmt(market.after_repair.estimate)}</b><small>Диапазон: {fmt(market.after_repair.minimum)} — {fmt(market.after_repair.maximum)}</small></div>
+            </div>
+            <p className="note">{market.explanation}</p>
+          </div>
+        ) : (
+          <p className="note">{market?.explanation || "Оценка по объявлениям пока не загружена."}</p>
+        )}
       </Card>
 
       <Card>

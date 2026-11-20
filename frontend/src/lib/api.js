@@ -97,82 +97,14 @@ export async function fetchScenarios(calculation, variantIndex, years) {
   }
 }
 
-
-export async function fetchParts(region, scale, filters = {}) {
-  const params = new URLSearchParams({
-    region,
-    scale: String(scale),
-    sort_by: filters.sort_by === "distance"
-        ? "distance_km"
-        : (filters.sort_by || "price"),
-  });
-
-  const query = String(filters.query || "").trim();
-
-  if (query) params.set("query", query);
-  if (filters.condition) params.set("condition", filters.condition);
-
-  if (filters.max_price !== "" && filters.max_price != null) {
-    params.set("max_price", String(filters.max_price));
-  }
-
-  if (filters.max_distance_km !== "" && filters.max_distance_km != null) {
-    params.set("max_distance_km", String(filters.max_distance_km));
-  }
-
+export async function fetchParts(region, scale) {
   try {
-    const data = await call(`/parts?${params.toString()}`);
+    const data = await call(`/parts?region=${encodeURIComponent(region)}&scale=${scale}`);
     backendOk = true;
     return data;
   } catch {
     backendOk = false;
-
-    let offers = local.buildPartOffers(scale, region);
-
-    const q = query.toLocaleLowerCase("ru-RU");
-    const isVin = /^[A-HJ-NPR-Z0-9]{17}$/i.test(query);
-
-    // Локальный движок пока не содержит VIN-справочник.
-    if (isVin) return [];
-
-    if (q) {
-      const normalizedOEM = query
-          .replace(/[\s-]+/g, "")
-          .toUpperCase();
-
-      offers = offers.filter((offer) =>
-          offer.name.toLocaleLowerCase("ru-RU").includes(q) ||
-          String(offer.oem || "")
-              .replace(/[\s-]+/g, "")
-              .toUpperCase() === normalizedOEM
-      );
-    }
-
-    if (filters.condition) {
-      offers = offers.filter(
-          (offer) => offer.condition === filters.condition
-      );
-    }
-
-    if (filters.max_price !== "" && filters.max_price != null) {
-      offers = offers.filter(
-          (offer) => offer.price <= Number(filters.max_price)
-      );
-    }
-
-    if (filters.max_distance_km !== "" && filters.max_distance_km != null) {
-      offers = offers.filter(
-          (offer) => offer.distance_km <= Number(filters.max_distance_km)
-      );
-    }
-
-    offers.sort((a, b) =>
-        filters.sort_by === "distance"
-            ? a.distance_km - b.distance_km
-            : a.price - b.price
-    );
-
-    return offers;
+    return local.buildPartOffers(scale, region);
   }
 }
 
@@ -196,6 +128,16 @@ export async function fetchAdvice(payload) {
     if (e.status === 422) throw new Error(e.detail || "Проверьте введённые условия");
     backendOk = false;
     return { ...advisor.compareScenarios(payload), online: false };
+  }
+}
+
+export async function fetchMarketValue(payload) {
+  // Не подменяем результат серверного анализа выдуманными рыночными объявлениями.
+  try {
+    return await call("/market-value", { method: "POST", body: JSON.stringify(payload) });
+  } catch {
+    return { status: "unavailable", count: 0, after_repair: null, as_is: null,
+      explanation: "Сервис рыночных объявлений недоступен. Оценка по объявлениям не выполнена." };
   }
 }
 

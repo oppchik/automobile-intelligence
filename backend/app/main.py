@@ -3,20 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from .accounts import router as accounts_router, get_optional_user
 from .financial_api import router as financial_router
+from .market_api import router as market_router
 
 from . import schemas, models
 from .database import Base, engine, ensure_columns, get_db
-from .data import (
-    BRANDS,
-    REGIONS,
-    REGION_CENTERS,
-    CONDITIONS,
-    CONDITION_LABELS,
-    DAMAGE_CATEGORIES,
-    VIN_PARTS_INDEX,
-)
+from .data import BRANDS, REGIONS, REGION_CENTERS, CONDITIONS, CONDITION_LABELS, DAMAGE_CATEGORIES
 from .engine import run_calculation, compute_scenarios, build_part_offers, build_sellers, CalculationResult, Variant
-from .parts_algorithms import search_parts
 from .repair_estimator import calculate_detailed_repair
 from .severity import MAX_BYTES, MAX_PHOTOS, severity_service
 
@@ -26,6 +18,7 @@ ensure_columns(engine)
 app = FastAPI(title="Авто-Интеллект API", version="0.1.0")
 
 app.include_router(financial_router)
+app.include_router(market_router)
 app.include_router(accounts_router)
 
 app.add_middleware(
@@ -122,37 +115,11 @@ def scenarios(req: schemas.ScenarioRequest):
     )
 
 
-
 @app.get("/api/parts")
-def parts(
-    region: str,
-    scale: float = 1.0,
-    query: str = "",
-    condition: str | None = None,
-    max_price: float | None = None,
-    max_distance_km: float | None = None,
-    sort_by: str = "price",
-):
+def parts(region: str, scale: float = 1.0):
     if region not in REGIONS:
         raise HTTPException(400, "Неизвестный регион")
-
-    try:
-        offers = build_part_offers(scale, region)
-
-        return search_parts(
-            offers,
-            query=query,
-            condition=condition or None,
-            region=region,
-            max_price=max_price,
-            max_distance_km=max_distance_km,
-            sort_by=sort_by,
-            vin_index=VIN_PARTS_INDEX,
-        )
-
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
-
+    return build_part_offers(scale, region)
 
 
 @app.get("/api/sellers", response_model=schemas.SellersResponse)
