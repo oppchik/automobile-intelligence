@@ -8,6 +8,7 @@ import { VariantCompare, EstimateBreakdown } from "./EstimateDetails.jsx";
 import PhotoSeverity from "./PhotoSeverity.jsx";
 import AdvisorCard from "./AdvisorCard.jsx";
 import { applySelectedParts } from "../lib/estimateParts.js";
+import { integrateMvp } from "../lib/mvpIntegration.js";
 
 const DECISION_ICON = { repair: "✓", sell: "○", inspect: "!" };
 
@@ -40,6 +41,30 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill, sel
   const [market, setMarket] = useState(null);
 
   const integrated = applySelectedParts(estimate, selectedParts);
+  const mvpResult = integrateMvp(result, integrated.estimate, market, variantIndex);
+  useEffect(() => {
+    if (!mvpResult) return;
+    let cancelled = false;
+    api.fetchScenarios(mvpResult, variantIndex, years).then((next) => {
+      if (!cancelled) setScenarios(next);
+    });
+    return () => { cancelled = true; };
+  }, [result, estimate, market, selectedParts, variantIndex, years]); // eslint-disable-line
+
+  // Reprice market whenever a selected part or repair variant changes.
+  useEffect(() => {
+    if (!result) return;
+    let cancelled = false;
+    setMarket(null);
+    api.fetchMarketValue({
+      brand: result.brand, model: result.model, year: result.year,
+      mileage: result.mileage, region: result.region,
+      repair_cost: integrated.estimate?.variants?.[variantIndex]?.amounts?.total ?? result.variants[variantIndex].cost,
+      severity: result.severity,
+    }).then((next) => { if (!cancelled) setMarket(next); });
+    return () => { cancelled = true; };
+  }, [result, estimate, selectedParts, variantIndex]); // eslint-disable-line
+
   const pendingModel = useRef(null);
   const [autoRun, setAutoRun] = useState(0);
 
@@ -126,13 +151,8 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill, sel
     setResult(r);
     setScenarios(s);
     setEstimate(e);
-    const marketResult = await api.fetchMarketValue({
-      brand: r.brand, model: r.model, year: r.year, mileage: r.mileage,
-      region: r.region, repair_cost: e?.variants?.[variantIndex]?.amounts?.total ?? r.variants[variantIndex].cost,
-      severity: r.severity,
-    });
-    setMarket(marketResult);
     setLoading(false);
+    // The effect above refreshes scenarios after the market and detailed estimate arrive.
     onSaveHistory(r, s, variantIndex, years);
   }
 
@@ -141,12 +161,6 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill, sel
     if (!result) return;
     const s = await api.fetchScenarios(result, i, years);
     setScenarios(s);
-    setMarket(await api.fetchMarketValue({
-      brand: result.brand, model: result.model, year: result.year,
-      mileage: result.mileage, region: result.region,
-      repair_cost: integrated.estimate?.variants?.[i]?.amounts?.total ?? result.variants[i].cost,
-      severity: result.severity,
-    }));
     onSaveHistory(result, s, i, years);
   }
 
@@ -260,10 +274,10 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill, sel
 
       {!loading && result && scenarios && (
         <ResultView
-          result={result} scenarios={scenarios} estimate={integrated.estimate} market={market} variantIndex={variantIndex}
+          result={mvpResult} scenarios={scenarios} estimate={integrated.estimate} market={market} variantIndex={variantIndex}
           onVariantChange={changeVariant} years={years} onYearsChange={changeYears}
           offline={offline || !result.online}
-          onSaveAdvisor={(advisor) => onSaveHistory(result, scenarios, variantIndex, years, advisor)}
+          onSaveAdvisor={(advisor) => onSaveHistory(mvpResult, scenarios, variantIndex, years, advisor)}
         />
       )}
     </div>
@@ -294,6 +308,7 @@ function ResultView({ result, scenarios, estimate, market, variantIndex, onVaria
         </div>
       </Card>
 
+      <p className="note">Единый MVP-расчёт: смета с выбранными запчастями → рыночная оценка → финансовые сценарии и советчик. {result.mvp_source === "local_demo_listings" ? "Цены автомобиля взяты из учебных объявлений." : "Недостаточно рыночных аналогов: используются исходные демонстрационные цены."}</p>
       <div className={`recommend ${s.decision}`}>
         <div className="ic">{DECISION_ICON[s.decision]}</div>
         <div>
@@ -341,7 +356,7 @@ function ResultView({ result, scenarios, estimate, market, variantIndex, onVaria
           <div><span>Как есть (с повреждениями)</span><b>{fmt(result.as_is_value)}</b></div>
           <div><span>После ремонта</span><b>{fmt(result.after_value)}</b></div>
         </div>
-        <p className="note">Значения выше рассчитаны исходным демонстрационным движком. Независимая оценка по объявлениям приведена ниже.</p>
+        <p className="note">{result.mvp_source === "local_demo_listings" ? "В итоговом финансовом сравнении используются учебные рыночные объявления." : "Для итогового сравнения используются исходные демонстрационные значения: подтверждённых рыночных аналогов недостаточно."}</p>
         {market?.after_repair && market?.as_is ? (
           <div style={{ marginTop: 14 }}>
             <h4>Оценка по тестовым объявлениям</h4>
