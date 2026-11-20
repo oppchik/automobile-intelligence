@@ -1,26 +1,25 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from .accounts import router as accounts_router, get_optional_user
 from .financial_api import router as financial_router
+from .market_api import router as market_router
 
 from . import schemas, models
-from .database import Base, engine, get_db
-from .data import (
-    BRANDS,
-    REGIONS,
-    CONDITIONS,
-    CONDITION_LABELS,
-    DAMAGE_CATEGORIES,
-    VIN_PARTS_INDEX,
-)
-from .engine import run_calculation, compute_scenarios, build_part_offers, CalculationResult, Variant
-from .parts_algorithms import search_parts
+from .database import Base, engine, ensure_columns, get_db
+from .data import BRANDS, REGIONS, REGION_CENTERS, CONDITIONS, CONDITION_LABELS, DAMAGE_CATEGORIES
+from .engine import run_calculation, compute_scenarios, build_part_offers, build_sellers, CalculationResult, Variant
+from .repair_estimator import calculate_detailed_repair
+from .severity import MAX_BYTES, MAX_PHOTOS, severity_service
 
 Base.metadata.create_all(bind=engine)
+ensure_columns(engine)
 
 app = FastAPI(title="Авто-Интеллект API", version="0.1.0")
 
 app.include_router(financial_router)
+app.include_router(market_router)
+app.include_router(accounts_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -78,20 +77,31 @@ def get_catalog():
     }
 
 
-@app.post("/api/calculate", response_model=schemas.CalculateResponse)
-def calculate(req: schemas.CalculateRequest):
+def _validate_request(req: schemas.CalculateRequest) -> None:
     if req.brand not in BRANDS or req.model not in BRANDS[req.brand]:
         raise HTTPException(400, "Неизвестная марка или модель")
     if req.region not in REGIONS:
         raise HTTPException(400, "Неизвестный регион")
     if req.condition not in CONDITIONS:
         raise HTTPException(400, "Неизвестное состояние")
+
+
+@app.post("/api/calculate", response_model=schemas.CalculateResponse)
+def calculate(req: schemas.CalculateRequest):
+    _validate_request(req)
     result = run_calculation(
         brand=req.brand, model=req.model, year=req.year, mileage=req.mileage,
         region=req.region, condition=req.condition, description=req.description,
         damage_categories=req.damage_categories, photo_count=req.photo_count,
+        photo_severity=req.photo_severity,
     )
     return _to_response(result)
+
+
+@app.post("/api/estimate", response_model=schemas.EstimateResponse)
+def estimate(req: schemas.CalculateRequest):
+    _validate_request(req)
+    return calculate_detailed_repair(**req.model_dump())
 
 
 @app.post("/api/scenarios", response_model=schemas.ScenarioResponse)
@@ -105,54 +115,53 @@ def scenarios(req: schemas.ScenarioRequest):
     )
 
 
-
 @app.get("/api/parts")
-def parts(
-    region: str,
-    scale: float = 1.0,
-    query: str = "",
-    condition: str | None = None,
-    max_price: float | None = None,
-    max_distance_km: float | None = None,
-    sort_by: str = "price",
-):
+def parts(region: str, scale: float = 1.0):
     if region not in REGIONS:
         raise HTTPException(400, "Неизвестный регион")
+    return build_part_offers(scale, region)
 
-    try:
-        offers = build_part_offers(scale, region)
 
-        return search_parts(
-            offers,
-            query=query,
-            condition=condition or None,
-            region=region,
-            max_price=max_price,
-            max_distance_km=max_distance_km,
-            sort_by=sort_by,
-            vin_index=VIN_PARTS_INDEX,
-        )
+@app.get("/api/sellers", response_model=schemas.SellersResponse)
+def sellers(region: str):
+    if region not in REGIONS:
+        raise HTTPException(400, "Неизвестный регион")
+    lat, lon = REGION_CENTERS[region]
+    return {"region": region, "center": {"lat": lat, "lon": lon}, "sellers": build_sellers(region)}
 
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
 
+def _history_scope(query, user, session_id):
+    if user is not None:
+        return query.filter(models.HistoryEntry.user_id == user.id)
+    return query.filter(
+        models.HistoryEntry.session_id == (session_id or ""),
+        models.HistoryEntry.user_id.is_(None),
+    )
 
 
 @app.get("/api/history", response_model=list[schemas.HistoryOut])
-def list_history(session_id: str, db: Session = Depends(get_db)):
+def list_history(
+    session_id: str | None = None,
+    limit: int = Query(default=30, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: models.User | None = Depends(get_optional_user),
+):
     rows = (
-        db.query(models.HistoryEntry)
-        .filter(models.HistoryEntry.session_id == session_id)
-        .order_by(models.HistoryEntry.created_at.desc())
-        .limit(30)
+        _history_scope(db.query(models.HistoryEntry), user, session_id)
+        .order_by(models.HistoryEntry.created_at.desc(), models.HistoryEntry.id.desc())
+        .limit(limit)
         .all()
     )
     return rows
 
 
 @app.post("/api/history", response_model=schemas.HistoryOut)
-def save_history(req: schemas.HistorySaveRequest, db: Session = Depends(get_db)):
-    entry = models.HistoryEntry(**req.model_dump())
+def save_history(
+    req: schemas.HistorySaveRequest,
+    db: Session = Depends(get_db),
+    user: models.User | None = Depends(get_optional_user),
+):
+    entry = models.HistoryEntry(**req.model_dump(), user_id=user.id if user else None)
     db.add(entry)
     db.commit()
     db.refresh(entry)
@@ -160,8 +169,31 @@ def save_history(req: schemas.HistorySaveRequest, db: Session = Depends(get_db))
 
 
 @app.delete("/api/history")
-def clear_history(session_id: str, db: Session = Depends(get_db)):
-    db.query(models.HistoryEntry).filter(models.HistoryEntry.session_id == session_id).delete()
+def clear_history(
+    session_id: str | None = None,
+    db: Session = Depends(get_db),
+    user: models.User | None = Depends(get_optional_user),
+):
+    _history_scope(db.query(models.HistoryEntry), user, session_id).delete(synchronize_session=False)
+    db.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/history/{entry_id}")
+def delete_history_entry(
+    entry_id: int,
+    session_id: str | None = None,
+    db: Session = Depends(get_db),
+    user: models.User | None = Depends(get_optional_user),
+):
+    entry = (
+        _history_scope(db.query(models.HistoryEntry), user, session_id)
+        .filter(models.HistoryEntry.id == entry_id)
+        .first()
+    )
+    if entry is None:
+        raise HTTPException(404, "Запись не найдена")
+    db.delete(entry)
     db.commit()
     return {"ok": True}
 
@@ -212,6 +244,17 @@ def vision_classify(description: str = "", photo_count: int = 0):
         "source": "heuristic-baseline",
         "note": "Эвристика на ключевых словах — не нейросеть. См. README.",
     }
+
+
+@app.on_event("startup")
+def warm_up_severity_model():
+    severity_service.warm_up()
+
+
+@app.post("/api/vision/severity", response_model=schemas.SeverityResponse)
+def vision_severity(photos: list[UploadFile] = File(default_factory=list)):
+    files = [(f.filename or "photo", f.file.read(MAX_BYTES + 1)) for f in photos[:MAX_PHOTOS + 1]]
+    return severity_service.classify(files)
 
 
 @app.get("/api/health")
