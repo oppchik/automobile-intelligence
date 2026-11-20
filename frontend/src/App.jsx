@@ -4,6 +4,7 @@ import CalcPage from "./components/CalcPage.jsx";
 import PartsPage from "./components/PartsPage.jsx";
 import SellerMap from "./components/SellerMap.jsx";
 import HistoryPage from "./components/HistoryPage.jsx";
+import AccountPage from "./components/AccountPage.jsx";
 import * as api from "./lib/api.js";
 import { load, save } from "./lib/storage.js";
 
@@ -16,13 +17,28 @@ export default function App() {
   const [picked, setPicked] = useState(() => load("ai_picked_point", null));
   const [toast, setToast] = useState("");
   const [offline, setOffline] = useState(false);
+  const [user, setUser] = useState(null);
+  const [recalc, setRecalc] = useState(null);
 
   useEffect(() => {
     api.fetchCatalog().then((c) => { setCatalog(c); setOffline(!c.online); });
   }, []);
 
   useEffect(() => {
-    api.fetchHistory().then((remote) => { if (remote) setHistory(remote); });
+    (async () => {
+      setUser(await api.fetchMe());
+      const remote = await api.fetchHistory();
+      if (remote) setHistory(remote);
+    })();
+  }, []);
+
+  useEffect(() => {
+    const onExpired = () => {
+      setUser(null);
+      setToast("Сессия истекла, войдите снова");
+    };
+    window.addEventListener("ai-auth-expired", onExpired);
+    return () => window.removeEventListener("ai-auth-expired", onExpired);
   }, []);
 
   useEffect(() => save("ai_history", history), [history]);
@@ -36,7 +52,7 @@ export default function App() {
     return () => clearTimeout(id);
   }, [toast]);
 
-  async function saveHistory(result, scenarios, variantIndex, years) {
+  async function saveHistory(result, scenarios, variantIndex, years, advisor) {
     setPartsCtx({ scale: result.scale, region: result.region });
     const entry = {
       ts: Date.now(), brand: result.brand, model: result.model, year: result.year,
@@ -44,11 +60,39 @@ export default function App() {
       categories: result.categories, severity: result.severity,
       variant_index: variantIndex, years, cost: scenarios.cost,
       scenario1: scenarios.scenario1, scenario2: scenarios.scenario2,
-      decision: scenarios.decision,
+      decision: scenarios.decision, advisor: advisor || null,
     };
     const saved = await api.saveHistory(entry);
-    setHistory((h) => [entry, ...h].slice(0, 30));
+    setHistory((h) => [saved || entry, ...h].slice(0, 50));
     if (!saved) setOffline(true);
+    if (advisor) setToast(saved ? "Расчёт сохранён в историю" : "Сохранено только на этом устройстве");
+  }
+
+  async function deleteHistoryItem(item) {
+    if (item.id && !(await api.deleteHistoryItem(item.id))) return setToast("Не удалось удалить запись");
+    setHistory((h) => h.filter((x) => (item.id ? x.id !== item.id : x.ts !== item.ts)));
+  }
+
+  function recalcFromHistory(item) {
+    setRecalc({ entry: item, nonce: Date.now() });
+    setActive("calc");
+  }
+
+  async function handleAuth(mode, form) {
+    const res = await api.authenticate(mode, form);
+    if (res.error) return res;
+    setUser(res.user);
+    const remote = await api.fetchHistory();
+    if (remote) setHistory(remote);
+    setToast(mode === "register" ? "Аккаунт создан" : "Вы вошли в аккаунт");
+    return {};
+  }
+
+  async function handleLogout() {
+    await api.logout();
+    setUser(null);
+    setHistory([]);
+    setToast("Вы вышли из аккаунта");
   }
 
   async function clearHistory() {
@@ -79,7 +123,7 @@ export default function App() {
       <Header active={active} onChange={setActive} />
       <main>
         <section className={"tab-panel" + (active === "calc" ? " on" : "")}>
-          <CalcPage catalog={catalog} onSaveHistory={saveHistory} offline={offline} />
+          <CalcPage catalog={catalog} onSaveHistory={saveHistory} offline={offline} prefill={recalc} />
         </section>
         <section className={"tab-panel" + (active === "parts" ? " on" : "")}>
           <PartsPage
@@ -102,7 +146,23 @@ export default function App() {
           />
         </section>
         <section className={"tab-panel" + (active === "history" ? " on" : "")}>
-          <HistoryPage items={history} onClear={clearHistory} />
+          <HistoryPage
+            items={history}
+            onClear={clearHistory}
+            onDelete={deleteHistoryItem}
+            onRecalc={recalcFromHistory}
+            loggedIn={!!user}
+          />
+        </section>
+        <section className={"tab-panel" + (active === "account" ? " on" : "")}>
+          <AccountPage
+            user={user}
+            historyCount={history.length}
+            offline={offline}
+            onAuth={handleAuth}
+            onLogout={handleLogout}
+            onOpenHistory={() => setActive("history")}
+          />
         </section>
       </main>
       <BottomNav active={active} onChange={setActive} />

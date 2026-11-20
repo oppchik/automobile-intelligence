@@ -6,10 +6,11 @@ import { Card, Field, Segmented } from "./ui.jsx";
 import { CirButton, CirCheck } from "./cirrus.jsx";
 import { VariantCompare, EstimateBreakdown } from "./EstimateDetails.jsx";
 import PhotoSeverity from "./PhotoSeverity.jsx";
+import AdvisorCard from "./AdvisorCard.jsx";
 
 const DECISION_ICON = { repair: "✓", sell: "○", inspect: "!" };
 
-export default function CalcPage({ catalog, onSaveHistory, offline }) {
+export default function CalcPage({ catalog, onSaveHistory, offline, prefill }) {
   const brands = catalog.brands;
   const regions = catalog.regions;
   const conditions = catalog.conditions;
@@ -36,7 +37,40 @@ export default function CalcPage({ catalog, onSaveHistory, offline }) {
   const [scenarios, setScenarios] = useState(null);
   const [estimate, setEstimate] = useState(null);
 
-  useEffect(() => { setModel(Object.keys(brands[brand])[0]); }, [brand]); // eslint-disable-line
+  const pendingModel = useRef(null);
+  const [autoRun, setAutoRun] = useState(0);
+
+  useEffect(() => {
+    const names = Object.keys(brands[brand]);
+    const wanted = pendingModel.current;
+    pendingModel.current = null;
+    setModel(wanted && names.includes(wanted) ? wanted : names[0]);
+  }, [brand]); // eslint-disable-line
+
+  useEffect(() => {
+    if (!prefill) return;
+    const x = prefill.entry;
+    if (!brands[x.brand]) return;
+    pendingModel.current = x.brand === brand ? null : x.model;
+    setModel(x.model);
+    setBrand(x.brand);
+    setYear(x.year);
+    setMileage(x.mileage);
+    if (regions.includes(x.region)) setRegion(x.region);
+    if (conditions.some((c) => c.value === x.condition)) setCondition(x.condition);
+    setCategories(x.categories.filter((c) => damageCategories.some((d) => d.value === c)));
+    setDescription("");
+    setPhotos([]);
+    setSeverityResult(null);
+    setPhotoSeverity(null);
+    setYears(x.years);
+    setVariantIndex(x.variant_index);
+    setAutoRun((n) => n + 1);
+  }, [prefill]); // eslint-disable-line
+
+  useEffect(() => {
+    if (autoRun > 0) handleCalculate();
+  }, [autoRun]); // eslint-disable-line
 
   function toggleCategory(value, checked) {
     setCategories((prev) => (checked ? [...new Set([...prev, value])] : prev.filter((c) => c !== value)));
@@ -197,13 +231,14 @@ export default function CalcPage({ catalog, onSaveHistory, offline }) {
           result={result} scenarios={scenarios} estimate={estimate} variantIndex={variantIndex}
           onVariantChange={changeVariant} years={years} onYearsChange={changeYears}
           offline={offline || !result.online}
+          onSaveAdvisor={(advisor) => onSaveHistory(result, scenarios, variantIndex, years, advisor)}
         />
       )}
     </div>
   );
 }
 
-function ResultView({ result, scenarios, estimate, variantIndex, onVariantChange, years, onYearsChange, offline }) {
+function ResultView({ result, scenarios, estimate, variantIndex, onVariantChange, years, onYearsChange, offline, onSaveAdvisor }) {
   const s = scenarios;
   const variant = result.variants[variantIndex];
   const maxAbs = Math.max(Math.abs(s.scenario1), Math.abs(s.scenario2), Math.abs(s.scenario3), 1);
@@ -298,6 +333,8 @@ function ResultView({ result, scenarios, estimate, variantIndex, onVariantChange
           {" "}Прогноз {fmt(result.after_value)} {margin >= 0 ? "выше" : "ниже"} этого порога на {Math.abs(margin).toFixed(1)}%.
         </p>
       </Card>
+
+      <AdvisorCard result={result} scenarios={scenarios} onSave={onSaveAdvisor} />
 
       <p className="note">Расчёт носит справочный характер и служит вторым мнением. Используются демонстрационные данные по ценам и нормо-часам.</p>
     </div>

@@ -1,20 +1,23 @@
-from fastapi import FastAPI, Depends, File, HTTPException, UploadFile
+from fastapi import FastAPI, Depends, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from .accounts import router as accounts_router, get_optional_user
 from .financial_api import router as financial_router
 
 from . import schemas, models
-from .database import Base, engine, get_db
+from .database import Base, engine, ensure_columns, get_db
 from .data import BRANDS, REGIONS, REGION_CENTERS, CONDITIONS, CONDITION_LABELS, DAMAGE_CATEGORIES
 from .engine import run_calculation, compute_scenarios, build_part_offers, build_sellers, CalculationResult, Variant
 from .repair_estimator import calculate_detailed_repair
 from .severity import MAX_BYTES, MAX_PHOTOS, severity_service
 
 Base.metadata.create_all(bind=engine)
+ensure_columns(engine)
 
 app = FastAPI(title="Авто-Интеллект API", version="0.1.0")
 
 app.include_router(financial_router)
+app.include_router(accounts_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -125,21 +128,38 @@ def sellers(region: str):
     return {"region": region, "center": {"lat": lat, "lon": lon}, "sellers": build_sellers(region)}
 
 
+def _history_scope(query, user, session_id):
+    if user is not None:
+        return query.filter(models.HistoryEntry.user_id == user.id)
+    return query.filter(
+        models.HistoryEntry.session_id == (session_id or ""),
+        models.HistoryEntry.user_id.is_(None),
+    )
+
+
 @app.get("/api/history", response_model=list[schemas.HistoryOut])
-def list_history(session_id: str, db: Session = Depends(get_db)):
+def list_history(
+    session_id: str | None = None,
+    limit: int = Query(default=30, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: models.User | None = Depends(get_optional_user),
+):
     rows = (
-        db.query(models.HistoryEntry)
-        .filter(models.HistoryEntry.session_id == session_id)
-        .order_by(models.HistoryEntry.created_at.desc())
-        .limit(30)
+        _history_scope(db.query(models.HistoryEntry), user, session_id)
+        .order_by(models.HistoryEntry.created_at.desc(), models.HistoryEntry.id.desc())
+        .limit(limit)
         .all()
     )
     return rows
 
 
 @app.post("/api/history", response_model=schemas.HistoryOut)
-def save_history(req: schemas.HistorySaveRequest, db: Session = Depends(get_db)):
-    entry = models.HistoryEntry(**req.model_dump())
+def save_history(
+    req: schemas.HistorySaveRequest,
+    db: Session = Depends(get_db),
+    user: models.User | None = Depends(get_optional_user),
+):
+    entry = models.HistoryEntry(**req.model_dump(), user_id=user.id if user else None)
     db.add(entry)
     db.commit()
     db.refresh(entry)
@@ -147,8 +167,31 @@ def save_history(req: schemas.HistorySaveRequest, db: Session = Depends(get_db))
 
 
 @app.delete("/api/history")
-def clear_history(session_id: str, db: Session = Depends(get_db)):
-    db.query(models.HistoryEntry).filter(models.HistoryEntry.session_id == session_id).delete()
+def clear_history(
+    session_id: str | None = None,
+    db: Session = Depends(get_db),
+    user: models.User | None = Depends(get_optional_user),
+):
+    _history_scope(db.query(models.HistoryEntry), user, session_id).delete(synchronize_session=False)
+    db.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/history/{entry_id}")
+def delete_history_entry(
+    entry_id: int,
+    session_id: str | None = None,
+    db: Session = Depends(get_db),
+    user: models.User | None = Depends(get_optional_user),
+):
+    entry = (
+        _history_scope(db.query(models.HistoryEntry), user, session_id)
+        .filter(models.HistoryEntry.id == entry_id)
+        .first()
+    )
+    if entry is None:
+        raise HTTPException(404, "Запись не найдена")
+    db.delete(entry)
     db.commit()
     return {"ok": True}
 
