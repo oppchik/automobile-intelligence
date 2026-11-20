@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, JSON
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON
 from sqlalchemy.sql import func
 
 from .database import Base
@@ -23,7 +23,29 @@ class HistoryEntry(Base):
     scenario1 = Column(Float, nullable=False)
     scenario2 = Column(Float, nullable=False)
     decision = Column(String, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=True)
+    advisor = Column(JSON(none_as_null=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=True)
+    password_hash = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class AuthSession(Base):
+    __tablename__ = "auth_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    token_hash = Column(String, unique=True, index=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime, nullable=False)
 
 
 class WatchlistItem(Base):

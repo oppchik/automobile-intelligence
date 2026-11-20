@@ -117,12 +117,133 @@ def compare_scenarios(
         },
     }
 
+    def discounted_costs(year_count: int) -> float:
+        return annual_total * sum(
+            1 / (1 + discount_rate) ** year
+            for year in range(1, year_count + 1)
+        )
+
+    def discounted_transport(year_count: int) -> float:
+        if alternative_transport_per_year is None:
+            return 0.0
+        return alternative_transport_per_year * sum(
+            1 / (1 + discount_rate) ** year
+            for year in range(1, year_count + 1)
+        )
+
+    def discounted_resale(year_count: int) -> float:
+        return (
+            after_repair_value * (1 - depreciation_rate) ** year_count
+            * (1 - sale_fee_rate) / (1 + discount_rate) ** year_count
+        )
+
+    keep_items = [
+        {
+            "key": "repair",
+            "label": "Ремонт",
+            "value_rub": round(-repair_cost, 2),
+        },
+        {
+            "key": "ownership",
+            "label": "Расходы на владение",
+            "value_rub": round(-ownership_cost_pv, 2),
+        },
+        {
+            "key": "resale",
+            "label": "Продажа через заданный срок",
+            "value_rub": round(discounted_resale(years), 2),
+        },
+    ]
+
+    if alternative_transport_per_year is not None:
+        keep_items.append({
+            "key": "transport",
+            "label": "Сэкономленный транспорт",
+            "value_rub": round(discounted_transport(years), 2),
+        })
+
+    breakdown = {
+        "sell_as_is": {
+            "formula": "Цена как есть минус расходы на продажу",
+            "complete": True,
+            "items": [
+                {
+                    "key": "price",
+                    "label": "Цена как есть",
+                    "value_rub": round(as_is_value, 2),
+                },
+                {
+                    "key": "fee",
+                    "label": "Расходы на продажу",
+                    "value_rub": round(-as_is_value * sale_fee_rate, 2),
+                },
+            ],
+        },
+        "repair_sell": {
+            "formula": (
+                "Цена после ремонта минус расходы на продажу "
+                "минус ремонт"
+            ),
+            "complete": True,
+            "items": [
+                {
+                    "key": "price",
+                    "label": "Цена после ремонта",
+                    "value_rub": round(after_repair_value, 2),
+                },
+                {
+                    "key": "fee",
+                    "label": "Расходы на продажу",
+                    "value_rub": round(
+                        -after_repair_value * sale_fee_rate, 2
+                    ),
+                },
+                {
+                    "key": "repair",
+                    "label": "Ремонт",
+                    "value_rub": round(-repair_cost, 2),
+                },
+            ],
+        },
+        "repair_keep": {
+            "formula": (
+                "Минус ремонт, минус расходы на владение, плюс "
+                "продажа через заданный срок и сэкономленный "
+                "транспорт, всё приведено к сегодняшним деньгам"
+            ),
+            "complete": alternative_transport_per_year is not None,
+            "items": keep_items,
+        },
+    }
+
+    timeline = []
+
+    for year in range(years + 1):
+        keep_at_year = None
+
+        if alternative_transport_per_year is not None:
+            keep_at_year = round(
+                -repair_cost
+                - discounted_costs(year)
+                + discounted_transport(year)
+                + discounted_resale(year),
+                2,
+            )
+
+        timeline.append({
+            "year": year,
+            "sell_as_is": round(sell_now, 2),
+            "repair_sell": round(repair_and_sell, 2),
+            "repair_keep": keep_at_year,
+        })
+
     if goal == "keep_using" and repair_affordable and keep_value is None:
         recommendation = "needs_data"
         reason = (
             "Укажите расходы на альтернативный транспорт, "
             "чтобы оценить финансовую пользу эксплуатации."
         )
+        comparison = None
     else:
         choices = ["sell_as_is"]
 
@@ -150,6 +271,13 @@ def compare_scenarios(
         min_difference = (
             max(as_is_value, after_repair_value) * margins[risk]
         )
+
+        comparison = {
+            "best": best,
+            "second": second,
+            "difference_rub": round(difference, 2),
+            "threshold_rub": round(min_difference, 2),
+        }
 
         if second and difference < min_difference:
             recommendation = "inspect"
@@ -180,6 +308,9 @@ def compare_scenarios(
         "repair_cost_rub": round(repair_cost, 2),
         "repair_affordable": repair_affordable,
         "years": years,
+        "comparison": comparison,
+        "breakdown": breakdown,
+        "timeline": timeline,
         "note": (
             "Оценки модельные. Износ учитывается через "
             "остаточную стоимость автомобиля и не включается "

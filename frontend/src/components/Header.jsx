@@ -5,6 +5,7 @@ const TABS = [
   { id: "parts", label: "Запчасти", icon: "◫" },
   { id: "map", label: "Карта", icon: "◎" },
   { id: "history", label: "История", icon: "▤" },
+  { id: "account", label: "Кабинет", icon: "☺" },
 ];
 
 export default function Header({ active, onChange }) {

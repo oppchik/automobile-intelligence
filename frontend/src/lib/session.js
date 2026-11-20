@@ -8,3 +8,19 @@ export function getSessionId() {
   }
   return id;
 }
+
+export function getToken() {
+  return load("ai_token", null);
+}
+
+export function setToken(token) {
+  save("ai_token", token);
+}
+
+export function clearToken() {
+  try {
+    localStorage.removeItem("ai_token");
+  } catch {
+    return;
+  }
+}

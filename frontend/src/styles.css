@@ -238,6 +238,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--line);font-size:13.5px}
 .hist-item b{display:block;font-weight:500}
 .hist-item small{color:var(--muted)}
 .hist-item .right{text-align:right}
+.hist-item .right small{display:block}
 
 .offline-banner{
   display:flex;align-items:center;gap:8px;background:var(--orange-tint);color:#8a5a06;
@@ -329,3 +330,54 @@ tr.est-total td{border-bottom:none;font-size:15px;border-top:1.5px solid var(--c
 .seller-pin--on span{box-shadow:0 0 0 3px var(--color-signal),0 2px 6px rgba(14,17,22,.35)}
 @media(max-width:600px){.seller-map .toolbar select{flex:1 1 calc(50% - 10px);min-width:0;padding-left:12px;padding-right:30px;font-size:13px;text-overflow:ellipsis}.seller-map .toolbar .cir-search{flex:1 1 100%;max-width:none}}
 @media(max-width:420px){.seller-map .toolbar select{flex-basis:100%}}
+
+.advisor-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:14px}
+.advisor-head h3{margin:0}
+.advisor-status{font-size:12px;color:var(--muted)}
+.advisor-conditions .row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:520px){.advisor-conditions .row-2{grid-template-columns:1fr}}
+.range-row{display:flex;align-items:center;gap:14px}
+.range-row input[type="range"]{flex:1;padding:0;height:6px;accent-color:var(--color-ink)}
+.range-row b{min-width:24px;text-align:right;font-size:17px}
+.advisor-body{margin-top:6px;transition:opacity .2s ease}
+.advisor-body.is-busy{opacity:.55}
+.advisor-sub{margin:22px 0 10px;font-size:13.5px;font-weight:600;letter-spacing:-0.005em}
+.advisor-compare{margin-top:6px;font-size:13px}
+.chart-box{background:var(--surface-2);border-radius:var(--radius-field);padding:12px 12px 10px}
+.chart-svg{display:block;width:100%;height:auto;overflow:visible}
+.chart-grid{stroke:var(--line-2);stroke-width:1;stroke-dasharray:3 4}
+.chart-axis{stroke:var(--color-ink);stroke-width:1.2}
+.chart-tick{font-size:11px;fill:var(--muted)}
+.chart-label{font-size:13px;font-weight:500;fill:var(--color-ink)}
+.chart-value{font-size:13px;font-weight:700;fill:var(--color-ink)}
+.chart-note{font-size:11.5px;fill:var(--muted)}
+.chart-net{fill:var(--color-ink);stroke:#fff;stroke-width:2}
+.chart-legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:12px;color:var(--muted)}
+.chart-legend span{display:inline-flex;align-items:center;gap:6px}
+.chart-legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.chart-legend i.chart-net-dot{border-radius:50%;background:var(--color-ink)}
+.explain{display:grid;gap:8px}
+.explain-item{background:var(--surface-2);border-radius:var(--radius-field);padding:10px 14px}
+.explain-item summary{display:flex;justify-content:space-between;gap:10px;cursor:pointer;font-size:13.5px;font-weight:500;list-style:none}
+.explain-item summary::-webkit-details-marker{display:none}
+.explain-item summary::before{content:"▸";margin-right:8px;color:var(--muted)}
+.explain-item[open] summary::before{content:"▾"}
+.explain-item summary span{flex:1}
+.explain-table{min-width:0;margin-top:4px}
+.explain-table td{padding:7px 0;font-size:13px}
+.explain-table td:last-child{text-align:right;white-space:nowrap;font-weight:600}
+.explain-table td.neg{color:var(--red)}
+.explain-table td.pos{color:var(--green)}
+.account-head{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.account-head b{display:block;font-weight:500;font-size:16px}
+.account-head small{display:block;color:var(--muted)}
+.avatar{width:48px;height:48px;border-radius:50%;background:var(--color-ink);color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:600;flex:none}
+.account-stats{margin-bottom:6px}
+.account-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.auth-form{max-width:420px}
+.hist-actions{display:flex;justify-content:flex-end;gap:14px;margin-top:6px}
+.link-btn{border:0;background:none;padding:0;font-size:12.5px;font-weight:500;color:var(--color-signal);cursor:pointer}
+.link-btn.danger{color:var(--red)}
+.link-btn:hover{text-decoration:underline}
+.link-btn:focus-visible{outline:2px solid var(--color-signal);outline-offset:2px;border-radius:4px}
+@media(max-width:520px){.chart-label,.chart-value{font-size:11.5px}}

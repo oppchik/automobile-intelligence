@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -80,10 +81,12 @@ class HistorySaveRequest(BaseModel):
     scenario1: float
     scenario2: float
     decision: str
+    advisor: dict | None = None
 
 
 class HistoryOut(HistorySaveRequest):
     id: int
+    created_at: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -207,3 +210,32 @@ class SellersResponse(BaseModel):
     region: str
     center: dict[str, float]
     sellers: list[SellerPoint]
+
+
+class RegisterRequest(BaseModel):
+    email: str = Field(max_length=254)
+    password: str = Field(min_length=8, max_length=128)
+    name: str | None = Field(default=None, max_length=60)
+    session_id: str | None = None
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(max_length=254)
+    password: str = Field(max_length=128)
+    session_id: str | None = None
+
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+    name: str | None = None
+    created_at: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class AuthResponse(BaseModel):
+    token: str
+    user: UserOut
+    claimed: int = 0
