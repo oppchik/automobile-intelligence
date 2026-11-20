@@ -127,11 +127,18 @@ export default function App() {
         </section>
         <section className={"tab-panel" + (active === "parts" ? " on" : "")}>
           <PartsPage
-            scale={partsCtx.scale}
-            region={partsCtx.region}
-            watchList={watchList}
-            onToggleWatch={toggleWatch}
-            onToast={setToast}
+              scale={partsCtx.scale}
+              region={partsCtx.region}
+              regions={catalog.regions}
+              onRegionChange={(nextRegion) =>
+                  setPartsCtx((current) => ({
+                    ...current,
+                    region: nextRegion,
+                  }))
+              }
+              watchList={watchList}
+              onToggleWatch={toggleWatch}
+              onToast={setToast}
           />
         </section>
         <section className={"tab-panel" + (active === "map" ? " on" : "")}>
