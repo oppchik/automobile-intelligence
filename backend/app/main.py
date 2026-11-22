@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from .accounts import router as accounts_router, get_optional_user
 from .financial_api import router as financial_router
+from .market_api import router as market_router
 
 from . import schemas, models
 from .database import Base, engine, ensure_columns, get_db
@@ -17,6 +18,7 @@ ensure_columns(engine)
 app = FastAPI(title="Авто-Интеллект API", version="0.1.0")
 
 app.include_router(financial_router)
+app.include_router(market_router)
 app.include_router(accounts_router)
 
 app.add_middleware(

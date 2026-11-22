@@ -15,10 +15,16 @@ services:
       retries: 10
 
   api:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        WITH_ML: ${WITH_ML:-0}
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+psycopg2://avto:avto@db:5432/avto_intellekt
+    volumes:
+      - ml_cache:/srv/ml/data/cache
     depends_on:
       db:
         condition: service_healthy
@@ -35,3 +41,4 @@ services:
 
 volumes:
   db_data:
+  ml_cache:

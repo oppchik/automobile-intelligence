@@ -4,7 +4,7 @@ import * as api from "../lib/api.js";
 import { Card } from "./ui.jsx";
 import { CirSearch } from "./cirrus.jsx";
 
-export default function PartsPage({ scale, region, watchList, onToggleWatch, onToast }) {
+export default function PartsPage({ scale, region, watchList, onToggleWatch, onToast, onAddToEstimate }) {
   const [query, setQuery] = useState("");
   const [condition, setCondition] = useState("");
   const [sort, setSort] = useState("price");
@@ -52,12 +52,12 @@ export default function PartsPage({ scale, region, watchList, onToggleWatch, onT
       <div className="table-wrap">
         <table>
           <thead>
-            <tr><th></th><th>Деталь</th><th>Состояние</th><th>Продавец</th><th>Город</th><th>Доставка</th><th>Цена</th></tr>
+            <tr><th></th><th>Деталь</th><th>Состояние</th><th>Продавец</th><th>Город</th><th>Доставка</th><th>Цена</th><th>Смета</th></tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={7} className="empty-state">Загружаем предложения…</td></tr>}
+            {loading && <tr><td colSpan={8} className="empty-state">Загружаем предложения…</td></tr>}
             {!loading && filtered.length === 0 && (
-              <tr><td colSpan={7} className="empty-state">Ничего не найдено</td></tr>
+              <tr><td colSpan={8} className="empty-state">Ничего не найдено</td></tr>
             )}
             {!loading && filtered.map((o) => {
               const watched = watchList.includes(o.key);
@@ -74,6 +74,7 @@ export default function PartsPage({ scale, region, watchList, onToggleWatch, onT
                   <td>{o.city}<br /><small style={{ color: "var(--muted)" }}>{o.distance_km} км</small></td>
                   <td>{o.delivery ? "Есть" : "Самовывоз"}</td>
                   <td><b>{fmt(o.price)}</b></td>
+                  <td><button type="button" onClick={() => onAddToEstimate(o)}>В смету</button></td>
                 </tr>
               );
             })}

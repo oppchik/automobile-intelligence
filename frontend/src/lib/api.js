@@ -131,6 +131,16 @@ export async function fetchAdvice(payload) {
   }
 }
 
+export async function fetchMarketValue(payload) {
+  // Не подменяем результат серверного анализа выдуманными рыночными объявлениями.
+  try {
+    return await call("/market-value", { method: "POST", body: JSON.stringify(payload) });
+  } catch {
+    return { status: "unavailable", count: 0, after_repair: null, as_is: null,
+      explanation: "Сервис рыночных объявлений недоступен. Оценка по объявлениям не выполнена." };
+  }
+}
+
 export async function fetchHistory() {
   const sessionId = getSessionId();
   try {

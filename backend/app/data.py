@@ -115,6 +115,18 @@ PARTS_CATALOG: dict[str, dict[str, int | None]] = {
     "Датчик парковки": {"new": 9800, "used": 4300},
 }
 
+# Демонстрационный индекс совместимости VIN с OEM-кодами.
+# Используется для проверки поиска запчастей в MVP.
+
+VIN_PARTS_INDEX: dict[str, list[str]] = {
+    "XTA219010N0000001": [
+        "OEM 73680",
+        "OEM 22350",
+        "OEM 88689",
+        "OEM 14375",
+    ],
+}
+
 SELLERS: list[tuple[str, str]] = [
     ("ЕвроАвто", "new"),
     ("Bibinet", "new"),

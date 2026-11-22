@@ -104,7 +104,7 @@ export function EstimateBreakdown({ estimate, variantIndex }) {
           <tbody>
             {items.map((p) => (
               <tr key={p.kind + p.name}>
-                <td>{p.name}</td>
+                <td>{p.name}{p.selected_offer && <small className="est-formula">Выбрано у продавца: {p.seller} · OEM {p.oem}</small>}</td>
                 <td>
                   {p.kind === "material"
                     ? <span className="tag">Материал</span>

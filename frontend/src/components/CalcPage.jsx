@@ -7,10 +7,12 @@ import { CirButton, CirCheck } from "./cirrus.jsx";
 import { VariantCompare, EstimateBreakdown } from "./EstimateDetails.jsx";
 import PhotoSeverity from "./PhotoSeverity.jsx";
 import AdvisorCard from "./AdvisorCard.jsx";
+import { applySelectedParts } from "../lib/estimateParts.js";
+import { integrateMvp } from "../lib/mvpIntegration.js";
 
 const DECISION_ICON = { repair: "✓", sell: "○", inspect: "!" };
 
-export default function CalcPage({ catalog, onSaveHistory, offline, prefill }) {
+export default function CalcPage({ catalog, onSaveHistory, offline, prefill, selectedParts = [], onRemovePart }) {
   const brands = catalog.brands;
   const regions = catalog.regions;
   const conditions = catalog.conditions;
@@ -36,6 +38,32 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill }) {
   const [years, setYears] = useState(2);
   const [scenarios, setScenarios] = useState(null);
   const [estimate, setEstimate] = useState(null);
+  const [market, setMarket] = useState(null);
+
+  const integrated = applySelectedParts(estimate, selectedParts);
+  const mvpResult = integrateMvp(result, integrated.estimate, market, variantIndex);
+  useEffect(() => {
+    if (!mvpResult) return;
+    let cancelled = false;
+    api.fetchScenarios(mvpResult, variantIndex, years).then((next) => {
+      if (!cancelled) setScenarios(next);
+    });
+    return () => { cancelled = true; };
+  }, [result, estimate, market, selectedParts, variantIndex, years]); // eslint-disable-line
+
+  // Reprice market whenever a selected part or repair variant changes.
+  useEffect(() => {
+    if (!result) return;
+    let cancelled = false;
+    setMarket(null);
+    api.fetchMarketValue({
+      brand: result.brand, model: result.model, year: result.year,
+      mileage: result.mileage, region: result.region,
+      repair_cost: integrated.estimate?.variants?.[variantIndex]?.amounts?.total ?? result.variants[variantIndex].cost,
+      severity: result.severity,
+    }).then((next) => { if (!cancelled) setMarket(next); });
+    return () => { cancelled = true; };
+  }, [result, estimate, selectedParts, variantIndex]); // eslint-disable-line
 
   const pendingModel = useRef(null);
   const [autoRun, setAutoRun] = useState(0);
@@ -108,6 +136,7 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill }) {
     setResult(null);
     setScenarios(null);
     setEstimate(null);
+    setMarket(null);
 
     const payload = {
       brand, model, year: +year, mileage: +mileage, region, condition,
@@ -123,6 +152,7 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill }) {
     setScenarios(s);
     setEstimate(e);
     setLoading(false);
+    // The effect above refreshes scenarios after the market and detailed estimate arrive.
     onSaveHistory(r, s, variantIndex, years);
   }
 
@@ -206,6 +236,22 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill }) {
         <div className="err-text">{error}</div>
       </Card>
 
+      {selectedParts.length > 0 && (
+        <Card title="Выбранные детали из агрегатора">
+          {selectedParts.map((part) => (
+            <div key={part.key} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 10 }}>
+              <span>{part.name} ({part.oem}) · {part.seller}</span>
+              <b>{fmt(part.price * part.quantity)}</b>
+              <button type="button" onClick={() => onRemovePart(part.key)}>Удалить</button>
+            </div>
+          ))}
+          <p><b>Стоимость выбранных деталей: {fmt(selectedParts.reduce((sum, part) => sum + part.price * part.quantity, 0))}</b></p>
+          <p className="note">Совпадающие по названию позиции заменяют расчётные цены в расшифровке сметы. Несовпадающие позиции не включаются автоматически.</p>
+          {integrated.replacements.length > 0 && <p className="note">Учтено в смете: {integrated.replacements.map((p) => p.name).join(", ")}</p>}
+          {integrated.unmatched.length > 0 && <p className="note">Не сопоставлено: {integrated.unmatched.map((p) => p.name).join(", ")}</p>}
+        </Card>
+      )}
+
       {loading && (
         <Card>
           <div className="loading-state">
@@ -228,17 +274,17 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill }) {
 
       {!loading && result && scenarios && (
         <ResultView
-          result={result} scenarios={scenarios} estimate={estimate} variantIndex={variantIndex}
+          result={mvpResult} scenarios={scenarios} estimate={integrated.estimate} market={market} variantIndex={variantIndex}
           onVariantChange={changeVariant} years={years} onYearsChange={changeYears}
           offline={offline || !result.online}
-          onSaveAdvisor={(advisor) => onSaveHistory(result, scenarios, variantIndex, years, advisor)}
+          onSaveAdvisor={(advisor) => onSaveHistory(mvpResult, scenarios, variantIndex, years, advisor)}
         />
       )}
     </div>
   );
 }
 
-function ResultView({ result, scenarios, estimate, variantIndex, onVariantChange, years, onYearsChange, offline, onSaveAdvisor }) {
+function ResultView({ result, scenarios, estimate, market, variantIndex, onVariantChange, years, onYearsChange, offline, onSaveAdvisor }) {
   const s = scenarios;
   const variant = result.variants[variantIndex];
   const maxAbs = Math.max(Math.abs(s.scenario1), Math.abs(s.scenario2), Math.abs(s.scenario3), 1);
@@ -262,6 +308,7 @@ function ResultView({ result, scenarios, estimate, variantIndex, onVariantChange
         </div>
       </Card>
 
+      <p className="note">Единый MVP-расчёт: смета с выбранными запчастями → рыночная оценка → финансовые сценарии и советчик. {result.mvp_source === "local_demo_listings" ? "Цены автомобиля взяты из учебных объявлений." : "Недостаточно рыночных аналогов: используются исходные демонстрационные цены."}</p>
       <div className={`recommend ${s.decision}`}>
         <div className="ic">{DECISION_ICON[s.decision]}</div>
         <div>
@@ -278,6 +325,7 @@ function ResultView({ result, scenarios, estimate, variantIndex, onVariantChange
       </div>
 
       <Card title="Смета ремонта">
+        {estimate && <p className="note">Итог с выбранными деталями: {fmt(estimate.variants[variantIndex].amounts.total)}. Предложения продавцов учитываются только при совпадении названий.</p>}
         <div className="variants">
           {result.variants.map((v, i) => (
             <label key={v.name} className={"variant" + (i === variantIndex ? " on" : "")}>
@@ -308,7 +356,19 @@ function ResultView({ result, scenarios, estimate, variantIndex, onVariantChange
           <div><span>Как есть (с повреждениями)</span><b>{fmt(result.as_is_value)}</b></div>
           <div><span>После ремонта</span><b>{fmt(result.after_value)}</b></div>
         </div>
-        <p className="note">Оценка основана на аналогичных объявлениях с учётом региона, года, пробега и состояния до поломки.</p>
+        <p className="note">{result.mvp_source === "local_demo_listings" ? "В итоговом финансовом сравнении используются учебные рыночные объявления." : "Для итогового сравнения используются исходные демонстрационные значения: подтверждённых рыночных аналогов недостаточно."}</p>
+        {market?.after_repair && market?.as_is ? (
+          <div style={{ marginTop: 14 }}>
+            <h4>Оценка по тестовым объявлениям</h4>
+            <div className="kv-grid">
+              <div><span>Как есть</span><b>{fmt(market.as_is.estimate)}</b><small>Диапазон: {fmt(market.as_is.minimum)} — {fmt(market.as_is.maximum)}</small></div>
+              <div><span>После ремонта</span><b>{fmt(market.after_repair.estimate)}</b><small>Диапазон: {fmt(market.after_repair.minimum)} — {fmt(market.after_repair.maximum)}</small></div>
+            </div>
+            <p className="note">{market.explanation}</p>
+          </div>
+        ) : (
+          <p className="note">{market?.explanation || "Оценка по объявлениям пока не загружена."}</p>
+        )}
       </Card>
 
       <Card>
