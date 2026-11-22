@@ -1,7 +1,7 @@
 // Минимальный service worker: кэширует оболочку приложения для офлайн-запуска
 // (PWA-режим на Android/iOS). Данные расчётов всё равно идут через fetch к API
 // или через офлайн-движок в lib/engine.js — сам SW данными не управляет.
-const CACHE = "avto-intellekt-shell-v1";
+const CACHE = "avto-intellekt-shell-v2";
 const SHELL = ["/", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -24,17 +24,14 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/api/")) return;
 
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const network = fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(request, copy));
-          }
-          return response;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
+    fetch(request)
+      .then((response) => {
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE).then((cache) => cache.put(request, copy));
+        }
+        return response;
+      })
+      .catch(() => caches.match(request).then((cached) => cached || caches.match("/")))
   );
 });
