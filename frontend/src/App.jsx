@@ -5,11 +5,13 @@ import PartsPage from "./components/PartsPage.jsx";
 import SellerMap from "./components/SellerMap.jsx";
 import HistoryPage from "./components/HistoryPage.jsx";
 import AccountPage from "./components/AccountPage.jsx";
+import HomePage from "./components/HomePage.jsx";
+import HelpPage from "./components/HelpPage.jsx";
 import * as api from "./lib/api.js";
 import { load, save } from "./lib/storage.js";
 
 export default function App() {
-  const [active, setActive] = useState("calc");
+  const [active, setActive] = useState("home");
   const [catalog, setCatalog] = useState(null);
   const [history, setHistory] = useState(() => load("ai_history", []));
   const [watchList, setWatchList] = useState(() => load("ai_watchlist", []));
@@ -128,50 +130,68 @@ export default function App() {
 
   return (
     <div className="app">
-      <Header active={active} onChange={setActive} />
+      <Header active={active} onChange={setActive} user={user} />
       <main>
+        <section className={"tab-panel" + (active === "home" ? " on" : "")}>
+          <HomePage onNavigate={setActive} />
+        </section>
         <section className={"tab-panel" + (active === "calc" ? " on" : "")}>
-          <CalcPage catalog={catalog} onSaveHistory={saveHistory} offline={offline} prefill={recalc} selectedParts={selectedParts} onRemovePart={(key) => setSelectedParts((items) => items.filter((item) => item.key !== key))} />
+          <CalcPage catalog={catalog} onSaveHistory={saveHistory} offline={offline} prefill={recalc} onHome={() => setActive("home")} selectedParts={selectedParts} onRemovePart={(key) => setSelectedParts((items) => items.filter((item) => item.key !== key))} />
         </section>
         <section className={"tab-panel" + (active === "parts" ? " on" : "")}>
-          <PartsPage
-            scale={partsCtx.scale}
-            region={partsCtx.region}
-            watchList={watchList}
-            onToggleWatch={toggleWatch}
-            onToast={setToast}
-            onAddToEstimate={addPartToEstimate}
-          />
+          <div className="page-wrap">
+            <PartsPage
+              scale={partsCtx.scale}
+              region={partsCtx.region}
+              watchList={watchList}
+              onToggleWatch={toggleWatch}
+              onToast={setToast}
+              onAddToEstimate={addPartToEstimate}
+            />
+          </div>
         </section>
         <section className={"tab-panel" + (active === "map" ? " on" : "")}>
-          <SellerMap
-            regions={catalog.regions}
-            region={partsCtx.region}
-            scale={partsCtx.scale}
-            active={active === "map"}
-            picked={picked}
-            onPick={setPicked}
-            onToast={setToast}
-          />
+          <div className="page-wrap">
+            <SellerMap
+              regions={catalog.regions}
+              region={partsCtx.region}
+              scale={partsCtx.scale}
+              active={active === "map"}
+              picked={picked}
+              onPick={setPicked}
+              onToast={setToast}
+            />
+          </div>
         </section>
         <section className={"tab-panel" + (active === "history" ? " on" : "")}>
-          <HistoryPage
-            items={history}
-            onClear={clearHistory}
-            onDelete={deleteHistoryItem}
-            onRecalc={recalcFromHistory}
-            loggedIn={!!user}
-          />
+          <div className="page-wrap">
+            <div className="page-mid">
+              <HistoryPage
+                items={history}
+                onClear={clearHistory}
+                onDelete={deleteHistoryItem}
+                onRecalc={recalcFromHistory}
+                loggedIn={!!user}
+              />
+            </div>
+          </div>
         </section>
         <section className={"tab-panel" + (active === "account" ? " on" : "")}>
-          <AccountPage
-            user={user}
-            historyCount={history.length}
-            offline={offline}
-            onAuth={handleAuth}
-            onLogout={handleLogout}
-            onOpenHistory={() => setActive("history")}
-          />
+          <div className="page-wrap">
+            <div className="page-narrow">
+              <AccountPage
+                user={user}
+                historyCount={history.length}
+                offline={offline}
+                onAuth={handleAuth}
+                onLogout={handleLogout}
+                onOpenHistory={() => setActive("history")}
+              />
+            </div>
+          </div>
+        </section>
+        <section className={"tab-panel" + (active === "help" ? " on" : "")}>
+          <HelpPage onNavigate={setActive} />
         </section>
       </main>
       <BottomNav active={active} onChange={setActive} />

@@ -1,6 +1,6 @@
-export function Card({ title, eyebrow, children }) {
+export function Card({ title, eyebrow, className = "", children }) {
   return (
-    <div className="card">
+    <div className={className ? `card ${className}` : "card"}>
       {eyebrow && <span className="eyebrow">{eyebrow}</span>}
       {title && <h2>{title}</h2>}
       {children}
