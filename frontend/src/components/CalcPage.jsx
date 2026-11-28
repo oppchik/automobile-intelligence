@@ -3,7 +3,11 @@ import { fmt } from "../lib/engine.js";
 import { suggestedSeverity } from "../lib/severity.js";
 import * as api from "../lib/api.js";
 import { Card, Field, Segmented } from "./ui.jsx";
-import { CirButton, CirCheck } from "./cirrus.jsx";
+import Stepper from "./Stepper.jsx";
+import CarMap from "./CarMap.jsx";
+import {
+  IconPin, IconQr, IconInfo, IconBack, IconNext, IconCheck, IconUpload, IconClose, IconPlus, IconBulb, IconCalc,
+} from "./icons.jsx";
 import { VariantCompare, EstimateBreakdown } from "./EstimateDetails.jsx";
 import PhotoSeverity from "./PhotoSeverity.jsx";
 import AdvisorCard from "./AdvisorCard.jsx";
@@ -11,22 +15,31 @@ import { applySelectedParts } from "../lib/estimateParts.js";
 import { integrateMvp } from "../lib/mvpIntegration.js";
 
 const DECISION_ICON = { repair: "✓", sell: "○", inspect: "!" };
+const DAMAGE_TYPES = ["Царапины", "Вмятины", "Разбито стекло", "Трещины", "Сколы", "Нарушение геометрии"];
+const VIN_RE = /^[A-HJ-NPR-Z0-9]{17}$/;
 
-export default function CalcPage({ catalog, onSaveHistory, offline, prefill, selectedParts = [], onRemovePart }) {
+export default function CalcPage({ catalog, onSaveHistory, offline, prefill, selectedParts = [], onRemovePart, onHome }) {
   const brands = catalog.brands;
   const regions = catalog.regions;
   const conditions = catalog.conditions;
   const damageCategories = catalog.damage_categories;
 
-  const [brand, setBrand] = useState(Object.keys(brands)[0]);
-  const [model, setModel] = useState(Object.keys(brands[Object.keys(brands)[0]])[0]);
-  const [year, setYear] = useState(2018);
-  const [mileage, setMileage] = useState(85000);
-  const [region, setRegion] = useState(regions[0]);
+  const [step, setStep] = useState(1);
+  const [brand, setBrand] = useState("");
+  const [model, setModel] = useState("");
+  const [year, setYear] = useState("");
+  const [mileage, setMileage] = useState("");
+  const [region, setRegion] = useState("");
+  const [vin, setVin] = useState("");
   const [condition, setCondition] = useState("good");
+  const [errors, setErrors] = useState({});
   const [description, setDescription] = useState("");
   const [categories, setCategories] = useState([]);
+  const [types, setTypes] = useState([]);
   const [photos, setPhotos] = useState([]);
+  const [photoFiles, setPhotoFiles] = useState([]);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInput = useRef(null);
   const [severityResult, setSeverityResult] = useState(null);
   const [severityLoading, setSeverityLoading] = useState(false);
   const [photoSeverity, setPhotoSeverity] = useState(null);
@@ -69,11 +82,15 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill, sel
   const [autoRun, setAutoRun] = useState(0);
 
   useEffect(() => {
-    const names = Object.keys(brands[brand]);
+    const names = brand ? Object.keys(brands[brand]) : [];
     const wanted = pendingModel.current;
     pendingModel.current = null;
-    setModel(wanted && names.includes(wanted) ? wanted : names[0]);
+    setModel(wanted && names.includes(wanted) ? wanted : "");
   }, [brand]); // eslint-disable-line
+
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [step]);
 
   useEffect(() => {
     if (!prefill) return;
@@ -82,13 +99,17 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill, sel
     pendingModel.current = x.brand === brand ? null : x.model;
     setModel(x.model);
     setBrand(x.brand);
-    setYear(x.year);
-    setMileage(x.mileage);
+    setYear(String(x.year));
+    setMileage(String(x.mileage));
     if (regions.includes(x.region)) setRegion(x.region);
     if (conditions.some((c) => c.value === x.condition)) setCondition(x.condition);
     setCategories(x.categories.filter((c) => damageCategories.some((d) => d.value === c)));
     setDescription("");
+    setTypes([]);
     setPhotos([]);
+    setPhotoFiles([]);
+    setErrors({});
+    setStep(2);
     setSeverityResult(null);
     setPhotoSeverity(null);
     setYears(x.years);
@@ -104,10 +125,51 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill, sel
     setCategories((prev) => (checked ? [...new Set([...prev, value])] : prev.filter((c) => c !== value)));
   }
 
+  function toggleType(label) {
+    setTypes((prev) => (prev.includes(label) ? prev.filter((t) => t !== label) : [...prev, label]));
+  }
+
+  function applyPhotoFiles(files) {
+    photos.forEach((u) => URL.revokeObjectURL(u));
+    const next = files.slice(0, 6);
+    setPhotoFiles(next);
+    setPhotos(next.map((f) => URL.createObjectURL(f)));
+    runClassification(next);
+  }
+
+  function addPhotos(list) {
+    const incoming = [...list].filter((f) => f.type.startsWith("image/"));
+    if (incoming.length) applyPhotoFiles([...photoFiles, ...incoming]);
+  }
+
   function handlePhotos(e) {
-    const files = [...e.target.files].slice(0, 6);
-    setPhotos(files.map((f) => URL.createObjectURL(f)));
-    runClassification(files);
+    addPhotos(e.target.files);
+    e.target.value = "";
+  }
+
+  function removePhoto(i) {
+    applyPhotoFiles(photoFiles.filter((_, idx) => idx !== i));
+  }
+
+  function validateCar() {
+    const e = {};
+    if (!brand) e.brand = "Выберите марку";
+    if (!model) e.model = "Выберите модель";
+    if (!(Number(year) >= 2005 && Number(year) <= 2026)) e.year = "Укажите год выпуска от 2005 до 2026";
+    if (mileage === "" || !(Number(mileage) >= 0)) e.mileage = "Укажите пробег";
+    if (!region) e.region = "Выберите город";
+    if (vin && !VIN_RE.test(vin)) e.vin = "VIN-код состоит из 17 символов: латиница и цифры, без I, O и Q";
+    return e;
+  }
+
+  function goNext() {
+    const e = validateCar();
+    setErrors(e);
+    if (Object.keys(e).length === 0) setStep(2);
+  }
+
+  function clearError(key) {
+    setErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
   }
 
   async function runClassification(files) {
@@ -126,12 +188,17 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill, sel
   }
 
   async function handleCalculate() {
-    if (!(year >= 2005 && year <= 2026)) return setError("Укажите год выпуска от 2005 до 2026");
-    if (!(mileage >= 0)) return setError("Укажите пробег");
-    if (!description.trim() && categories.length === 0 && photos.length === 0) {
-      return setError("Опишите проблему, отметьте категорию или загрузите фото");
+    const carErrors = validateCar();
+    if (Object.keys(carErrors).length > 0) {
+      setErrors(carErrors);
+      return setStep(1);
+    }
+    const fullDescription = [description.trim(), types.join(", ")].filter(Boolean).join(". ");
+    if (!fullDescription && categories.length === 0 && photos.length === 0) {
+      return setError("Опишите проблему, отметьте зону на схеме или загрузите фото");
     }
     setError("");
+    setStep(3);
     setLoading(true);
     setResult(null);
     setScenarios(null);
@@ -140,7 +207,7 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill, sel
 
     const payload = {
       brand, model, year: +year, mileage: +mileage, region, condition,
-      description, damage_categories: categories, photo_count: photos.length, photo_severity: photoSeverity,
+      description: fullDescription, damage_categories: categories, photo_count: photos.length, photo_severity: photoSeverity,
     };
     const started = Date.now();
     const r = await api.calculate(payload);
@@ -171,114 +238,206 @@ export default function CalcPage({ catalog, onSaveHistory, offline, prefill, sel
     setScenarios(s);
   }
 
+  const labels = Object.fromEntries(damageCategories.map((c) => [c.value, c.label]));
+  const partsCard = selectedParts.length > 0 && (
+    <Card title="Выбранные детали из агрегатора">
+      {selectedParts.map((part) => (
+        <div key={part.key} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 10 }}>
+          <span>{part.name} ({part.oem}) · {part.seller}</span>
+          <b>{fmt(part.price * part.quantity)}</b>
+          <button type="button" className="link-btn danger" onClick={() => onRemovePart(part.key)}>Удалить</button>
+        </div>
+      ))}
+      <p><b>Стоимость выбранных деталей: {fmt(selectedParts.reduce((sum, part) => sum + part.price * part.quantity, 0))}</b></p>
+      <p className="note">Совпадающие по названию позиции заменяют расчётные цены в расшифровке сметы. Несовпадающие позиции не включаются автоматически.</p>
+      {integrated.replacements.length > 0 && <p className="note">Учтено в смете: {integrated.replacements.map((p) => p.name).join(", ")}</p>}
+      {integrated.unmatched.length > 0 && <p className="note">Не сопоставлено: {integrated.unmatched.map((p) => p.name).join(", ")}</p>}
+    </Card>
+  );
+
   return (
-    <div className="grid-2">
-      <Card title="Ваш автомобиль">
-        <div className="row-2 field">
-          <Field label="Марка">
-            <select value={brand} onChange={(e) => setBrand(e.target.value)}>
-              {Object.keys(brands).map((b) => <option key={b}>{b}</option>)}
-            </select>
-          </Field>
-          <Field label="Модель">
-            <select value={model} onChange={(e) => setModel(e.target.value)}>
-              {Object.keys(brands[brand]).map((m) => <option key={m}>{m}</option>)}
-            </select>
-          </Field>
-        </div>
-        <div className="row-2 field">
-          <Field label="Год выпуска">
-            <input type="number" min="2005" max="2026" value={year} onChange={(e) => setYear(e.target.value)} />
-          </Field>
-          <Field label="Пробег, км">
-            <input type="number" min="0" step="1000" value={mileage} onChange={(e) => setMileage(e.target.value)} />
-          </Field>
-        </div>
-        <div className="row-2 field">
-          <Field label="Регион">
-            <select value={region} onChange={(e) => setRegion(e.target.value)}>
-              {regions.map((r) => <option key={r}>{r}</option>)}
-            </select>
-          </Field>
-          <Field label="Состояние до поломки">
-            <select value={condition} onChange={(e) => setCondition(e.target.value)}>
-              {conditions.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
-          </Field>
-        </div>
-        <Field label="Что случилось">
-          <textarea
-            placeholder="Например: ДТП, удар в переднюю часть, повреждены бампер, капот и фара"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </Field>
-        <Field label="Категории повреждений (можно уточнить вручную)">
-          <div className="damage-grid">
-            {damageCategories.map((c) => (
-              <CirCheck key={c.value} checked={categories.includes(c.value)} onChange={(ch) => toggleCategory(c.value, ch)}>
-                {c.label}
-              </CirCheck>
-            ))}
-          </div>
-        </Field>
-        <Field label=" ">
-          <label className="dropzone" htmlFor="photo-input">📷 Загрузить фото повреждений</label>
-          <input id="photo-input" type="file" accept="image/*" multiple hidden onChange={handlePhotos} />
-          {photos.length > 0 && (
-            <div className="thumbs">{photos.map((src, i) => <img key={i} src={src} alt="" />)}</div>
-          )}
-          <PhotoSeverity result={severityResult} loading={severityLoading} value={photoSeverity} onChange={setPhotoSeverity} />
-        </Field>
-        <CirButton className="cir-btn--block" arrow={false} onClick={handleCalculate} disabled={loading || severityLoading}>
-          Рассчитать
-        </CirButton>
-        <div className="err-text">{error}</div>
-      </Card>
+    <div className="page-wrap">
+      <Stepper current={step} reachable={2} onStep={setStep} />
 
-      {selectedParts.length > 0 && (
-        <Card title="Выбранные детали из агрегатора">
-          {selectedParts.map((part) => (
-            <div key={part.key} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 10 }}>
-              <span>{part.name} ({part.oem}) · {part.seller}</span>
-              <b>{fmt(part.price * part.quantity)}</b>
-              <button type="button" onClick={() => onRemovePart(part.key)}>Удалить</button>
+      {step === 1 && (
+        <div className="page-narrow">
+          <div className="card card--form">
+            <div className="card-body">
+              <div className="form-head">
+                <h2>Информация об автомобиле</h2>
+                <p>Введите базовые параметры вашего авто для начала интеллектуального анализа и оценки.</p>
+              </div>
+              <div className="form-grid">
+                <Field label="Марка">
+                  <select className={brand ? "" : "is-empty"} value={brand} onChange={(e) => { setBrand(e.target.value); clearError("brand"); }}>
+                    <option value="" disabled>Выберите марку</option>
+                    {Object.keys(brands).map((b) => <option key={b}>{b}</option>)}
+                  </select>
+                  {errors.brand && <div className="field-err">{errors.brand}</div>}
+                </Field>
+                <Field label="Модель">
+                  <select className={model ? "" : "is-empty"} value={model} disabled={!brand} onChange={(e) => { setModel(e.target.value); clearError("model"); }}>
+                    <option value="" disabled>Выберите модель</option>
+                    {brand && Object.keys(brands[brand]).map((m) => <option key={m}>{m}</option>)}
+                  </select>
+                  {errors.model && <div className="field-err">{errors.model}</div>}
+                </Field>
+                <Field label="Год выпуска">
+                  <input type="number" inputMode="numeric" min="2005" max="2026" placeholder="Напр. 2022" value={year} onChange={(e) => { setYear(e.target.value); clearError("year"); }} />
+                  {errors.year && <div className="field-err">{errors.year}</div>}
+                </Field>
+                <Field label="Пробег (км)">
+                  <input type="number" inputMode="numeric" min="0" step="1000" placeholder="Напр. 45 000" value={mileage} onChange={(e) => { setMileage(e.target.value); clearError("mileage"); }} />
+                  {errors.mileage && <div className="field-err">{errors.mileage}</div>}
+                </Field>
+                <Field label="Регион">
+                  <div className="field-icon">
+                    <select className={region ? "" : "is-empty"} value={region} onChange={(e) => { setRegion(e.target.value); clearError("region"); }}>
+                      <option value="" disabled>Выберите город</option>
+                      {regions.map((r) => <option key={r}>{r}</option>)}
+                    </select>
+                    <IconPin />
+                  </div>
+                  {errors.region && <div className="field-err">{errors.region}</div>}
+                </Field>
+                <Field label="VIN-код">
+                  <div className="field-icon is-brand">
+                    <input className="upper" type="text" maxLength={17} autoCapitalize="characters" autoComplete="off" spellCheck={false} placeholder="17 символов" value={vin} onChange={(e) => { setVin(e.target.value.toUpperCase()); clearError("vin"); }} />
+                    <IconQr />
+                  </div>
+                  {errors.vin && <div className="field-err">{errors.vin}</div>}
+                </Field>
+                <div className="span-2">
+                  <Field label="Состояние до поломки">
+                    <select value={condition} onChange={(e) => setCondition(e.target.value)}>
+                      {conditions.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                    </select>
+                  </Field>
+                </div>
+              </div>
+              <div className="banner">
+                <span className="banner-ic"><IconInfo /></span>
+                <p>Указание VIN-кода позволяет нам автоматически загрузить комплектацию и историю обслуживания, что повышает точность оценки на 40%.</p>
+              </div>
+              <div className="form-actions">
+                <button type="button" className="btn-text" onClick={() => onHome && onHome()}>
+                  <IconBack />
+                  Назад
+                </button>
+                <button type="button" className="btn" onClick={goNext}>
+                  Далее
+                  <IconNext />
+                </button>
+              </div>
             </div>
-          ))}
-          <p><b>Стоимость выбранных деталей: {fmt(selectedParts.reduce((sum, part) => sum + part.price * part.quantity, 0))}</b></p>
-          <p className="note">Совпадающие по названию позиции заменяют расчётные цены в расшифровке сметы. Несовпадающие позиции не включаются автоматически.</p>
-          {integrated.replacements.length > 0 && <p className="note">Учтено в смете: {integrated.replacements.map((p) => p.name).join(", ")}</p>}
-          {integrated.unmatched.length > 0 && <p className="note">Не сопоставлено: {integrated.unmatched.map((p) => p.name).join(", ")}</p>}
-        </Card>
-      )}
-
-      {loading && (
-        <Card>
-          <div className="loading-state">
-            <div className="spinner" />
-            <b>Анализируем повреждения и рынок…</b>
-            <p className="note">Считаем смету, ищем запчасти, сравниваем объявления</p>
+            <div className="card-bar" />
           </div>
-        </Card>
+        </div>
       )}
 
-      {!loading && !result && (
-        <Card>
-          <div className="empty-state">
-            <div className="ic">◔</div>
-            <h3>Первая оценка за пару минут</h3>
-            <p className="note">Заполните данные слева — опишите проблему текстом, отметьте категории или загрузите фото.</p>
+      {step === 2 && (
+        <div className="page-wide">
+          {partsCard && <div style={{ marginBottom: 32 }}>{partsCard}</div>}
+          <div className="step2">
+            <div className="step2-col">
+              <Card>
+                <CarMap categories={categories} labels={labels} onToggle={toggleCategory} />
+                <h3 className="types-title">Тип повреждений</h3>
+                <div className="types">
+                  {DAMAGE_TYPES.map((t) => (
+                    <label key={t} className={"type" + (types.includes(t) ? " on" : "")}>
+                      <input type="checkbox" checked={types.includes(t)} onChange={() => toggleType(t)} />
+                      <span className="type-box"><IconCheck /></span>
+                      <span className="type-label">{t}</span>
+                    </label>
+                  ))}
+                </div>
+              </Card>
+              <Card title="Описание повреждений" className="desc-card">
+                <textarea
+                  placeholder="Опишите обстоятельства или детали повреждений, которые не указаны выше..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </Card>
+            </div>
+            <div className="step2-col">
+              <Card title="Загрузите фото" className="photo-card">
+                <div
+                  className={"dz" + (dragOver ? " over" : "")}
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={(e) => { e.preventDefault(); setDragOver(false); addPhotos(e.dataTransfer.files); }}
+                >
+                  <div className="dz-ic"><IconUpload /></div>
+                  <p className="dz-title">Перетащите фото сюда</p>
+                  <p className="dz-hint">Поддерживаются форматы JPG, PNG до 10МБ каждое</p>
+                  <button type="button" className="dz-btn" onClick={() => fileInput.current && fileInput.current.click()}>Обзор файлов</button>
+                  <input ref={fileInput} type="file" accept="image/*" multiple hidden onChange={handlePhotos} />
+                </div>
+                {photos.length > 0 && (
+                  <div className="thumbs">
+                    {photos.map((src, i) => (
+                      <div className="thumb" key={src}>
+                        <img src={src} alt={`Фото повреждения ${i + 1}`} />
+                        <button type="button" className="thumb-x" aria-label={`Удалить фото ${i + 1}`} onClick={() => removePhoto(i)}><IconClose /></button>
+                      </div>
+                    ))}
+                    {photos.length < 6 && (
+                      <button type="button" className="thumb-add" aria-label="Добавить фото" onClick={() => fileInput.current && fileInput.current.click()}>
+                        <IconPlus />
+                      </button>
+                    )}
+                  </div>
+                )}
+                <div className="tip">
+                  <span className="tip-ic"><IconBulb /></span>
+                  <p>Совет: Делайте снимки с разных ракурсов и при хорошем освещении. Это ускорит работу AI-оценщика.</p>
+                </div>
+                <PhotoSeverity result={severityResult} loading={severityLoading} value={photoSeverity} onChange={setPhotoSeverity} />
+              </Card>
+              <div className="calc-wrap">
+                <button type="button" className="btn btn--xl" onClick={handleCalculate} disabled={loading || severityLoading}>
+                  Рассчитать стоимость
+                  <IconCalc />
+                </button>
+                <div className="err-text" style={{ textAlign: "center" }}>{error}</div>
+                <button type="button" className="btn-text btn-text--light" onClick={() => setStep(1)}>Вернуться к шагу 1</button>
+              </div>
+            </div>
           </div>
-        </Card>
+        </div>
       )}
 
-      {!loading && result && scenarios && (
-        <ResultView
-          result={mvpResult} scenarios={scenarios} estimate={integrated.estimate} market={market} variantIndex={variantIndex}
-          onVariantChange={changeVariant} years={years} onYearsChange={changeYears}
-          offline={offline || !result.online}
-          onSaveAdvisor={(advisor) => onSaveHistory(mvpResult, scenarios, variantIndex, years, advisor)}
-        />
+      {step === 3 && (
+        <div className="page-mid">
+          <div className="results-top">
+            <button type="button" className="btn-text btn-text--light" onClick={() => setStep(2)}>
+              <IconBack />
+              Изменить данные
+            </button>
+          </div>
+          {partsCard}
+
+          {loading && (
+            <Card>
+              <div className="loading-state">
+                <div className="spinner" />
+                <b>Анализируем повреждения и рынок…</b>
+                <p className="note">Считаем смету, ищем запчасти, сравниваем объявления</p>
+              </div>
+            </Card>
+          )}
+
+          {!loading && result && scenarios && (
+            <ResultView
+              result={mvpResult} scenarios={scenarios} estimate={integrated.estimate} market={market} variantIndex={variantIndex}
+              onVariantChange={changeVariant} years={years} onYearsChange={changeYears}
+              offline={offline || !result.online}
+              onSaveAdvisor={(advisor) => onSaveHistory(mvpResult, scenarios, variantIndex, years, advisor)}
+            />
+          )}
+        </div>
       )}
     </div>
   );
@@ -295,7 +454,7 @@ function ResultView({ result, scenarios, estimate, market, variantIndex, onVaria
   const severityName = ["лёгкие", "средние", "тяжёлые"][severityLevel];
 
   return (
-    <div>
+    <div className="results">
       {offline && (
         <div className="offline-banner">● Офлайн-режим: сервер расчётов недоступен, показаны данные локального движка</div>
       )}

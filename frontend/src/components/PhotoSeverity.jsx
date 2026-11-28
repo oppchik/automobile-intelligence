@@ -52,7 +52,7 @@ export default function PhotoSeverity({ result, loading, value, onChange }) {
         {source === "none" && "Тяжесть не указана: учитывается только количество фото"}
         {value && <button type="button" className="link-btn" onClick={() => onChange(null)}>Не указывать</button>}
       </div>
-      <p className="note">Модель оценивает только тяжесть, а не повреждённые детали — категории отметьте выше.</p>
+      <p className="note">Модель оценивает только тяжесть, а не повреждённые детали — категории отметьте на схеме автомобиля.</p>
     </div>
   );
 }
